@@ -1,0 +1,23 @@
+1.dotnet ef migrations add InitialLMIS --project .\Surveillance.Infrastructure\ --startup-project .\UPHC.SurveillanceDashboard_Staging_Clean_Architecture_DeepSeek\
+
+2.dotnet ef database update --project .\Surveillance.Infrastructure\ --startup-project .\UPHC.SurveillanceDashboard_Staging_Clean_Architecture_DeepSeek\
+3..20260522090849_InitialLMIS
+
+
+4.
+DEO enters patient
+↓
+LT collects sample
+↓
+LT dispatches sample to lab
+↓
+MB receives sample
+↓
+MB processes test
+↓
+Result generated
+↓
+MO/Admin/Analyst notified
+
+5.ReceiveNotification SignalR event fires live...one listens beep if live when signalr notification
+is received/sent.

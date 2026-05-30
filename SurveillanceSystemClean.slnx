@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/UPHC.SurveillanceDashboard_Staging_Clean_Architecture_DeepSeek/">
+    <Project Path="UPHC.SurveillanceDashboard_Staging_Clean_Architecture_DeepSeek/UPHC.SurveillanceDashboard.csproj" />
+  </Folder>
+  <Project Path="Surveillance.Application/Surveillance.Application.csproj" />
+  <Project Path="Surveillance.Domain/Surveillance.Domain.csproj" />
+  <Project Path="Surveillance.Infrastructure/Surveillance.Infrastructure.csproj" />
+</Solution>

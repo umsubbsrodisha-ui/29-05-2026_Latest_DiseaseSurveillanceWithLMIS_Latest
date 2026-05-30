@@ -1,0 +1,230 @@
+﻿@page "/Communicablerecords"
+
+@using MediatR
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Cases.Queries
+
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>
+    Communicable Records
+</PageTitle>
+
+<div class="facility-page">
+
+    
+    <!-- HEADER -->
+
+    <div class="facility-header">
+
+        <div>
+
+            <h1 class="facility-title">
+                📂 Communicable Records
+            </h1>
+
+            <div class="facility-address">
+                All communicable disease records
+            </div>
+
+        </div>
+
+        <div class="stats-card">
+
+            <div class="stats-count">
+                @records.Count
+            </div>
+
+            <div class="stats-label">
+                Showing
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- TABLE -->
+    @if (isLoading)
+    {
+        <div class="loading-card">
+
+            <div class="spinner-border text-primary"></div>
+
+            <div class="mt-3">
+                Loading records...
+            </div>
+
+        </div>
+    }
+    else if (!records.Any())
+    {
+        <div class="empty-card">
+
+            <div class="empty-icon">
+                📭
+            </div>
+
+            <h4>
+                No Records Found
+            </h4>
+
+        </div>
+    }
+    else
+    {
+        <div class="facility-table-container">
+
+            <table class=" custom-table mb-0">
+
+                <thead class="table-header">
+
+                    <tr>
+
+                        <th>
+                            Patient Name
+                        </th>
+
+                        <th>
+                            Facility
+                        </th>
+
+                        <th>
+                            Onset Date
+                        </th>
+
+                        <th style="width:140px;">
+                            Action
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    @foreach (var record in records)
+                    {
+                        <tr class="table-row">
+
+                            <td>
+                                <strong>
+                                    @record.PatientName
+                                </strong>
+                            </td>
+
+                            <td>
+                                @record.FacilityName
+                            </td>
+
+                            <td>
+                                @record.OnsetDate.ToString("dd MMM yyyy")
+                            </td>
+
+                            <td>
+
+                                <button class="btn-view"
+                                        @onclick="() => GoToDetails(record.Id)">
+
+                                    View Details
+
+                                </button>
+
+                            </td>
+
+                        </tr>
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        <!-- PAGINATION -->
+
+        <div class="pagination-container">
+
+            <button class="pagination-btn"
+                    @onclick="PreviousPage"
+                    disabled="@(pageNumber == 1)">
+
+                ← Previous
+
+            </button>
+
+            <div class="page-indicator">
+
+                Page @pageNumber
+
+            </div>
+
+            <button class="pagination-btn"
+                    @onclick="NextPage"
+                    disabled="@(records.Count < pageSize)">
+
+                Next →
+
+            </button>
+
+        </div>
+    }
+    
+
+</div>
+
+@code {
+
+
+private List<CommunicableRecordDto> records = new();
+
+    private bool isLoading = true;
+
+    private int pageNumber = 1;
+
+    private const int pageSize = 10;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRecords();
+    }
+
+    private async Task LoadRecords()
+    {
+        isLoading = true;
+
+        records = await Mediator.Send(
+            new GetCommunicableRecordsQuery
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            });
+
+        isLoading = false;
+    }
+
+    private async Task NextPage()
+    {
+        pageNumber++;
+
+        await LoadRecords();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (pageNumber > 1)
+        {
+            pageNumber--;
+
+            await LoadRecords();
+        }
+    }
+
+    private void GoToDetails(int id)
+    {
+        Navigation.NavigateTo($"/case-details/{id}");
+    }
+
+
+}
+

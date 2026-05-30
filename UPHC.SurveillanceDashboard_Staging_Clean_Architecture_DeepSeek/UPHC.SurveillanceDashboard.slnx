@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="../Surveillance.Application/Surveillance.Application.csproj" Id="43b0aed9-5c75-430e-8105-279ec0f268cc" />
+  <Project Path="../Surveillance.Domain/Surveillance.Domain.csproj" Id="1f7c0fb4-37fb-4a3a-9834-2092f84bb500" />
+  <Project Path="../Surveillance.Infrastructure/Surveillance.Infrastructure.csproj" Id="aa0077b6-15db-4cdf-b2f3-34b87e21b425" />
+  <Project Path="UPHC.SurveillanceDashboard.csproj" />
+</Solution>

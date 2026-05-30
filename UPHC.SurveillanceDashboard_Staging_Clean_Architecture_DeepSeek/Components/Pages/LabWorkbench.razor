@@ -1,0 +1,391 @@
+﻿@page "/lab-workbench"
+@attribute [Authorize(Roles = "MB,Admin")]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Lab.Queries
+@using Surveillance.Application.Features.Lab.Commands
+@using Surveillance.Domain.Entities
+@using Surveillance.Domain.Enums
+
+@inject IMediator Mediator
+@inject AuthenticationStateProvider AuthStateProvider
+@* @inject UserManager<ApplicationUser> UserManager *@
+
+<PageTitle>Lab Workbench</PageTitle>
+
+<div class="facility-page">
+
+    <div class="facility-header shadow-sm">
+        <div>
+            <div class="facility-title">
+                <i class="bi bi-eyedropper me-2"></i>
+                MB Lab Workbench
+            </div>
+            <div class="facility-address">
+                Facility : @facilityName
+            </div>
+        </div>
+
+        <div class="stats-card">
+            <div class="stats-count">@items.Count</div>
+            <div class="stats-label">Tests</div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-card shadow-sm">
+            <div class="spinner-border text-primary me-3"></div>
+            <span class="fw-semibold">Loading lab workbench...</span>
+        </div>
+    }
+    else if (!items.Any())
+    {
+        <div class="empty-card shadow-sm">
+            <div class="empty-icon">
+                <i class="bi bi-inbox"></i>
+            </div>
+            <h4>No lab tests found</h4>
+        </div>
+    }
+    else
+    {
+        <div class="facility-table-container shadow-sm">
+            <table class="table custom-table">
+                <thead class="table-header">
+                    <tr>
+                        <th>Case</th>
+                        <th>Patient</th>
+                        <th>Disease</th>
+                        <th>Sample</th>
+                        <th>Test</th>
+                        <th>Sample Status</th>
+                        <th>Result</th>
+                        <th>Verified</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var item in items)
+                    {
+                        <tr class="table-row">
+                            <td>#@item.CaseRecordId</td>
+
+                            <td>
+                                <strong>@item.PatientName</strong><br />
+                                <small>@item.Phone</small>
+                            </td>
+
+                            <td>
+                                <span class="disease-badge">
+                                    @item.DiseaseName
+                                </span>
+                            </td>
+
+                            <td>
+                                @item.SampleTypeName<br />
+                                <small>@(string.IsNullOrWhiteSpace(item.SampleBarcode) ? "No barcode" : item.SampleBarcode)</small>
+                            </td>
+
+                            <td>@item.LabTestName</td>
+
+                            <td>
+                                <span class="case-status">
+                                    @item.SampleStatus
+                                </span>
+                            </td>
+
+                            <td>
+                                @(string.IsNullOrWhiteSpace(item.LatestResultStatus)
+                                    ? "Pending"
+                                    : item.LatestResultStatus)
+                            </td>
+
+                            <td>
+                                @(item.LatestResultIsVerified == true ? "Yes" : "No")
+                            </td>
+                            <td>
+                                @if (isAdmin || item.LatestResultIsVerified != true)
+                                {
+                                    <button class="btn-view"
+                                            @onclick="() => OpenResultModal(item)">
+                                        Update Result
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Locked</span>
+                                }
+                            </td>
+                           @*  <td>
+                                <button class="btn-view"
+                                        @onclick="() => OpenResultModal(item)">
+                                    Enter Result
+                                </button>
+                            </td> *@
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (selectedItem != null)
+    {
+        <div class="custom-alert-overlay">
+            <div class="custom-alert-box success" style="max-width:560px; text-align:left;">
+
+                <h4 class="text-white mb-3">
+                    Enter Lab Result
+                </h4>
+
+                <div class="mb-3">
+                    <label class="form-label text-white">Test</label>
+                    <input class="form-control" value="@selectedItem.LabTestName" disabled />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-white">Result Status</label>
+                    <select class="form-control" @bind="resultStatus">
+                        @foreach (var status in Enum.GetValues<LabResultStatus>())
+                        {
+                            <option value="@status">@status</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-white">Result Value</label>
+                    <input class="form-control" @bind="resultValue" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-white">Remarks</label>
+                    <textarea class="form-control" rows="3" @bind="remarks"></textarea>
+                </div>
+
+              @*   <div class="mb-3">
+                    <label class="form-label text-white">Report Path</label>
+                    <input class="form-control" @bind="reportPath" />
+                </div> *@
+
+                <div class="form-check mb-3">
+                    <input type="checkbox"
+                           class="form-check-input"
+                           @bind="isVerified" />
+
+                    <label class="form-check-label text-white">
+                        Verify Result
+                    </label>
+                </div>
+
+                <div class="d-flex gap-2 justify-content-end">
+                    <button class="alert-close" @onclick="CloseModal">
+                        Cancel
+                    </button>
+
+                    <button class="alert-close" @onclick="SaveResult" disabled="@isSaving">
+                        @(isSaving ? "Saving..." : "Save Result")
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="custom-alert-overlay">
+            <div class="custom-alert-box @(success ? "success" : "error")">
+                <div class="alert-icon">
+                    @(success ? "✔️" : "❌")
+                </div>
+
+                <div class="alert-text">
+                    @message
+                </div>
+
+                <button class="alert-close" @onclick="CloseAlert">
+                    OK
+                </button>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private List<LabWorkbenchDto> items = new();
+
+    private LabWorkbenchDto? selectedItem;
+
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool success;
+    private string? message;
+
+    private int facilityId;
+    private string facilityName = "";
+    private string? currentUserId;
+
+    private string resultValue = "";
+    private LabResultStatus resultStatus;
+    private bool isVerified;
+    private string? remarks;
+    bool isAdmin=false;
+  
+   // private string? reportPath;
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        var user = authState.User;
+
+         isAdmin = user.IsInRole("Admin");
+
+        currentUserId =
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (isAdmin)
+        {
+            facilityId = 0;
+            facilityName = "All Facilities";
+        }
+        else
+        {
+            var facilityClaim = user.FindFirst("FacilityId")?.Value;
+
+            if (!int.TryParse(facilityClaim, out facilityId) ||
+                facilityId <= 0)
+            {
+                message = "Facility is not assigned to this user.";
+                success = false;
+                isLoading = false;
+                return;
+            }
+
+            facilityName = $"Facility #{facilityId}";
+        }
+
+        await LoadWorkbench();
+
+        isLoading = false;
+
+
+       //  var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+       //  var user = authState.User;
+       //  var appUser = await UserManager.GetUserAsync(user);
+       //  var isAdmin = user.IsInRole("Admin");
+       //  currentUserId =
+       // user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+       //  if (isAdmin)
+       //  {
+       //      facilityId = 0;
+       //      facilityName = "All Facilities";
+       //  }
+
+       //  if (appUser?.FacilityId == null)
+       //  {
+       //      message = "Facility is not assigned to this user.";
+       //      success = false;
+       //      isLoading = false;
+       //      return;
+       //  }
+
+       //  currentUserId = appUser.Id;
+       //  facilityId = appUser.FacilityId.Value;
+       //  facilityName = $"Facility #{facilityId}";
+
+       //  await LoadWorkbench();
+
+       //  isLoading = false;
+    }
+
+    private async Task LoadWorkbench()
+    {
+        items = await Mediator.Send(new GetLabWorkbenchQuery
+        {
+            FacilityId = facilityId
+        });
+    }
+
+    private void OpenResultModal(LabWorkbenchDto item)
+    {
+        selectedItem = item;
+
+        resultValue = item.LatestResultValue ?? "";
+        remarks = item.LatestResultRemarks;
+       // reportPath = item.ReportPath;
+        isVerified = item.LatestResultIsVerified ?? false;
+
+        if (!Enum.TryParse(item.LatestResultStatus, out resultStatus))
+        {
+            resultStatus = default;
+        }
+    }
+
+    private async Task SaveResult()
+    {
+        if (selectedItem == null || isSaving)
+            return;
+
+        isSaving = true;
+
+        try
+        {
+            var result = await Mediator.Send(new EnterLabResultCommand
+            {
+                CaseRecordLabTestId = selectedItem.CaseRecordLabTestId,
+                ResultValue = resultValue,
+                ResultStatus = resultStatus,
+                EnteredByUserId = currentUserId,
+                IsVerified = isVerified,
+                VerifiedByUserId = isVerified ? currentUserId : null,
+                Remarks = remarks,
+              //  ReportPath = reportPath
+            });
+
+            if (result)
+            {
+                success = true;
+                message = "Lab result saved successfully.";
+
+                selectedItem = null;
+
+                await LoadWorkbench();
+            }
+            else
+            {
+                success = false;
+                message = "Lab test record not found.";
+            }
+        }
+        catch (Exception ex)
+        {
+            success = false;
+            message = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void CloseModal()
+    {
+        selectedItem = null;
+    }
+
+    private void CloseAlert()
+    {
+        message = null;
+    }
+}

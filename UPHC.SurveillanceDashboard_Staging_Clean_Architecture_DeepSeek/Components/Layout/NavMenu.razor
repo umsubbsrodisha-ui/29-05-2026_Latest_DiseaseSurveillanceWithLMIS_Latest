@@ -1,0 +1,946 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+
+
+@inject AuthenticationStateProvider AuthStateProvider
+
+
+<!-- ========================= -->
+<!-- 💻 DESKTOP SIDEBAR -->
+<!-- ========================= -->
+<div class="sidebar-container d-none d-md-flex flex-column">
+
+    <a href="/dashboard" class="modern-nav-btn dashboard-btn">
+        📊 Dashboard
+    </a>
+
+    @if (canEnterCase)
+    {
+        <a href="/patiententry" class="modern-nav-btn patient-btn">
+            🧾 Patient Entry
+        </a>
+    }
+
+    @if (isFacilityUser || isMO || isDEO || isAdmin)
+    {
+        <a href="@facilityLink" class="modern-nav-btn records-btn">
+            📁 Case Records
+        </a>
+    }
+
+    @if (isLT || isMB || isAdmin)
+    {
+        <a href="/sample-queue" class="modern-nav-btn patient-btn">
+            🧪 Sample Queue
+        </a>
+    }
+
+    @if (isMB || isAdmin)
+    {
+        <a href="/lab-workbench" class="modern-nav-btn analyst-btn">
+            🔬 Lab Workbench
+        </a>
+    }
+
+    @if (isAnalystGroup)
+    {
+        <a href="/Communicablerecords" class="modern-nav-btn analyst-btn">
+            📂 Communicable Records
+        </a>
+
+        <a href="/uphc-list" class="modern-nav-btn uphc-btn">
+            🏥 Facilities
+        </a>
+    }
+
+</div>
+
+<!-- ========================= -->
+<!-- 📱 MOBILE BOTTOM NAV -->
+<!-- ========================= -->
+<div class="mobile-nav d-flex d-md-none justify-content-around align-items-center">
+
+    <a href="/dashboard" class="mobile-nav-item">
+        📊
+        <span>Home</span>
+    </a>
+
+    @if (canEnterCase)
+    {
+        <a href="/patiententry" class="mobile-nav-item">
+            🧾
+            <span>Entry</span>
+        </a>
+    }
+
+    @if (isFacilityUser || isMO || isDEO || isAdmin)
+    {
+        <a href="@facilityLink" class="mobile-nav-item">
+            📁
+            <span>Cases</span>
+        </a>
+    }
+
+    @if (isLT || isMB || isAdmin)
+    {
+        <a href="/sample-queue" class="mobile-nav-item">
+            🧪
+            <span>Samples</span>
+        </a>
+    }
+
+    @if (isMB || isAdmin)
+    {
+        <a href="/lab-workbench" class="mobile-nav-item">
+            🔬
+            <span>Lab</span>
+        </a>
+    }
+
+    @if (isAnalystGroup)
+    {
+        <a href="/Communicablerecords" class="mobile-nav-item">
+            📂
+            <span>Records</span>
+        </a>
+
+        <a href="/uphc-list" class="mobile-nav-item">
+            🏥
+            <span>UPHC</span>
+        </a>
+    }
+
+</div>
+
+@code {
+    bool isAnalystGroup = false;
+    bool isFacilityUser = false;
+    bool isLT = false;
+    bool isMB = false;
+    bool isMO = false;
+    bool isDEO = false;
+    bool isAdmin = false;
+    bool canEnterCase = false;
+
+    string facilityLink = "/facility/0";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isFacilityUser =
+            user.IsInRole("UPHCUser") ||
+            user.IsInRole("CHCUser") ||
+            user.IsInRole("UHWCUser");
+
+        isLT = user.IsInRole("LT");
+        isMB = user.IsInRole("MB");
+        isMO = user.IsInRole("MO");
+        isDEO = user.IsInRole("DEO");
+        isAdmin = user.IsInRole("Admin");
+
+        canEnterCase =
+            isFacilityUser ||
+            isMO ||
+            isDEO ||
+            isAdmin;
+
+        isAnalystGroup =
+            user.Identity?.IsAuthenticated == true &&
+            !isFacilityUser &&
+            !isLT &&
+            !isMB &&
+            !isMO &&
+            !isDEO;
+
+        // var appUser = await UserManager.GetUserAsync(user);
+
+        // if (appUser != null && appUser.FacilityId > 0)
+        // {
+        //     facilityLink = $"/facility/{appUser.FacilityId}";
+        // }
+
+        if (isAdmin)
+        {
+            facilityLink = "/facility/0";return;
+        }
+        else
+        {
+            var facilityClaim = user.FindFirst("FacilityId")?.Value;
+
+            if (int.TryParse(facilityClaim, out var userFacilityId) &&
+                userFacilityId > 0)
+            {
+                facilityLink = $"/facility/{userFacilityId}";
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Surveillance.Domain.Entities
+
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+
+<!-- ========================= -->
+<!-- 💻 DESKTOP SIDEBAR -->
+<!-- ========================= -->
+<div class="sidebar-container d-none d-md-flex flex-column">
+
+    <a href="/dashboard" class="modern-nav-btn dashboard-btn">
+        📊 Dashboard
+    </a>
+
+    @if (isFacilityUser)
+    {
+        <a href="/patiententry" class="modern-nav-btn patient-btn">
+            🧾 Patient Entry
+        </a>
+
+        <a href="@facilityLink" class="modern-nav-btn records-btn">
+            📁 Case Records
+        </a>
+    }
+
+    @if (isAnalystGroup)
+    {
+        <a href="/Communicablerecords" class="modern-nav-btn analyst-btn">
+            📂 communicable Records
+        </a>
+
+        <a href="/uphc-list" class="modern-nav-btn uphc-btn">
+            🏥 Facilities
+        </a>
+    }
+
+</div>
+
+<!-- ========================= -->
+<!-- 📱 MOBILE BOTTOM NAV -->
+<!-- ========================= -->
+<div class="mobile-nav d-flex d-md-none justify-content-around align-items-center">
+
+    <a href="/dashboard" class="mobile-nav-item">
+        📊
+        <span>Home</span>
+    </a>
+
+    @if (isFacilityUser)
+    {
+        <a href="/patiententry" class="mobile-nav-item">
+            🧾
+            <span>Entry</span>
+        </a>
+
+        <a href="@facilityLink" class="mobile-nav-item">
+            📁
+            <span>Cases</span>
+        </a>
+    }
+
+    @if (isAnalystGroup)
+    {
+        <a href="/records" class="mobile-nav-item">
+            📂
+            <span>Records</span>
+        </a>
+
+        <a href="/uphc-list" class="mobile-nav-item">
+            🏥
+            <span>UPHC</span>
+        </a>
+    }
+
+</div>
+
+@code {
+    bool isAnalystGroup = false;
+    bool isFacilityUser = false;
+    string facilityLink = "/facility/0";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isFacilityUser =
+            user.IsInRole("UPHCUser") ||
+            user.IsInRole("CHCUser") ||
+            user.IsInRole("UHWCUser");
+
+        isAnalystGroup = !isFacilityUser;
+
+        var appUser = await UserManager.GetUserAsync(user);
+        if (appUser != null && appUser.FacilityId > 0)
+        {
+            facilityLink = $"/facility/{appUser.FacilityId}";
+        }
+    }
+}
+
+ *@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Identity
+@using Surveillance.Domain.Entities
+@using UPHC.SurveillanceDashboard.Models
+@inject UserManager<ApplicationUser> UserManager
+
+<!-- ========================= -->
+<!-- 💻 DESKTOP SIDEBAR -->
+<!-- ========================= -->
+<div class="sidebar-container d-none d-md-flex flex-column">
+
+    <a href="/dashboard" class="modern-nav-btn dashboard-btn">
+        📊 Dashboard
+    </a>
+
+    @if (isFacilityUser)
+    {
+        <a href="/patiententry" class="modern-nav-btn patient-btn">
+            🧾 Patient Entry
+        </a>
+
+        <a href="@facilityLink" class="modern-nav-btn records-btn">
+            📁 Case Records
+        </a>
+    }
+
+    @if (isAnalystGroup)
+    {
+        <a href="/records" class="modern-nav-btn analyst-btn">
+            📂 Records
+        </a>
+
+        <a href="/uphc-list" class="modern-nav-btn uphc-btn">
+            🏥 UPHC List
+        </a>
+    }
+
+</div>
+
+
+<!-- ========================= -->
+<!-- 📱 MOBILE BOTTOM NAV -->
+<!-- ========================= -->
+<div class="mobile-nav d-flex d-md-none justify-content-around align-items-center">
+
+    <a href="/dashboard" class="mobile-nav-item">
+        📊
+        <span>Home</span>
+    </a>
+
+    @if (isFacilityUser)
+    {
+        <a href="/patiententry" class="mobile-nav-item">
+            🧾
+            <span>Entry</span>
+        </a>
+
+        <a href="@facilityLink" class="mobile-nav-item">
+            📁
+            <span>Cases</span>
+        </a>
+    }
+
+    @if (isAnalystGroup)
+    {
+        <a href="/records" class="mobile-nav-item">
+            📂
+            <span>Records</span>
+        </a>
+
+        <a href="/uphc-list" class="mobile-nav-item">
+            🏥
+            <span>UPHC</span>
+        </a>
+    }
+
+</div>
+
+
+@code {
+    bool isAnalystGroup = false;
+    bool isFacilityUser = false;
+
+    string facilityLink = "/facility/0";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isFacilityUser =
+            user.IsInRole("UPHCUser") ||
+            user.IsInRole("CHCUser") ||
+            user.IsInRole("UHWCUser");
+
+        isAnalystGroup = !isFacilityUser;
+
+        var appUser = await UserManager.GetUserAsync(user);
+        if (appUser != null && appUser.FacilityId > 0)
+        {
+            facilityLink = $"/facility/{appUser.FacilityId}";
+        }
+    }
+}
+ *@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Identity
+@using UPHC.SurveillanceDashboard.Models
+
+@inject UserManager<ApplicationUser> UserManager
+
+<div class="sidebar-container">
+
+    <!-- ========================= -->
+    <!-- 🧬 SIDEBAR HEADER -->
+    <!-- ========================= -->
+
+    <div class="sidebar-header mb-4">
+
+        <div class="sidebar-logo">
+            🧬
+        </div>
+
+        <div>
+            <div class="sidebar-title">
+                IDSP
+            </div>
+
+            <div class="sidebar-subtitle">
+                Surveillance Portal
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ========================= -->
+    <!-- 📊 DASHBOARD -->
+    <!-- ========================= -->
+
+    <a href="/dashboard"
+           class="modern-nav-btn dashboard-btn mb-3">
+
+        <span>📊</span>
+        <span>Dashboard</span>
+
+    </a>
+
+    <!-- ========================= -->
+    <!-- 🏥 FACILITY USERS -->
+    <!-- ========================= -->
+    @if (isFacilityUser)
+    {
+        <a href="/patiententry"
+               class="modern-nav-btn patient-btn mb-3">
+
+            <span>📝</span>
+            <span>Patient Entry</span>
+
+        </a>
+
+        <a href="@facilityRecordsUrl"
+               class="modern-nav-btn records-btn mb-3">
+
+            <span>🏥</span>
+            <span>Case Records</span>
+
+        </a>
+    }
+
+    <!-- ========================= -->
+    <!-- 🧪 ANALYST GROUP -->
+    <!-- ========================= -->
+    @if (isAnalystGroup)
+    {
+        <a href="/records"
+               class="modern-nav-btn analyst-btn mb-3">
+
+            <span>📂</span>
+            <span>Records</span>
+
+        </a>
+
+        <a href="/uphc-list"
+               class="modern-nav-btn uphc-btn mb-3">
+
+            <span>🏢</span>
+            <span>UPHC List</span>
+
+        </a>
+    }
+
+</div>
+
+@code {
+
+    bool isAnalystGroup = false;
+    bool isFacilityUser = false;
+
+    string facilityRecordsUrl = "/facilityRecords";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState =
+            await AuthStateProvider.GetAuthenticationStateAsync();
+
+        var user = authState.User;
+
+        // =========================
+        // FACILITY USER CHECK
+        // =========================
+
+        isFacilityUser =
+            user.IsInRole("UPHCUser") ||
+            user.IsInRole("CHCUser") ||
+            user.IsInRole("UHWCUser");
+
+        // =========================
+        // ANALYST GROUP
+        // =========================
+
+        isAnalystGroup = !isFacilityUser;
+
+        // =========================
+        // FACILITY ID URL
+        // =========================
+
+        if (isFacilityUser)
+        {
+            var appUser =
+                await UserManager.GetUserAsync(user);
+
+            if (appUser != null && appUser.FacilityId != null)
+            {
+                facilityRecordsUrl =
+                    $"/facility/{appUser.FacilityId}";
+            }
+        }
+    }
+}
+
+ *@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+
+@using UPHC.SurveillanceDashboard.Models
+
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+
+<div class="nav flex-column p-2 bg-light shadow-sm"
+     style="width:220px; min-height:100vh;">
+
+    
+    <!-- DASHBOARD -->
+    <a href="/dashboard" class="nav-link">
+        📊 Dashboard
+    </a>
+
+    @if (isFacilityUser)
+    {
+        <!-- PATIENT ENTRY -->
+        <a href="/patiententry" class="nav-link">
+            📝 Patient Entry
+        </a>
+
+        <!-- FACILITY CASE RECORDS -->
+        <a href="@facilityRecordsUrl" class="nav-link">
+            🏥 Case Records
+        </a>
+    }
+
+    @if (isAnalystGroup)
+    {
+        <!-- RECORDS -->
+        <a href="/records" class="nav-link">
+            📂 Records
+        </a>
+
+        <!-- UPHC LIST -->
+        <a href="/uphc-list" class="nav-link">
+            🏥 UPHC List
+        </a>
+    }
+    
+
+</div>
+
+@code {
+
+
+bool isAnalystGroup = false;
+
+    bool isFacilityUser = false;
+
+    string facilityRecordsUrl = "/dashboard";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState =
+            await AuthStateProvider.GetAuthenticationStateAsync();
+
+        var user = authState.User;
+
+        // ✅ Facility Users
+        isFacilityUser =
+            user.IsInRole("UPHCUser") ||
+            user.IsInRole("CHCUser") ||
+            user.IsInRole("UHWCUser");
+
+        // ✅ Analyst Group
+        isAnalystGroup = !isFacilityUser;
+
+        // ✅ Generate facility URL dynamically
+        if (isFacilityUser)
+        {
+            var appUser =
+                await UserManager.GetUserAsync(user);
+
+            if (appUser?.FacilityId != null)
+            {
+                facilityRecordsUrl =
+                    $"/facility/{appUser.FacilityId}";
+            }
+        }
+    }
+
+
+} *@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Identity
+@using UPHC.SurveillanceDashboard.Models
+
+@inject UserManager<ApplicationUser> UserManager
+
+
+<div class="nav flex-column p-2 bg-light" style="width:220px; min-height:100vh;">
+
+    <a href="/dashboard" class="nav-link">Dashboard</a>
+
+    @if (isFacilityUser)
+    {
+        <a href="/patiententry" class="nav-link">Patient Entry</a>
+        <a href="/facilityRecords" class="nav-link">Caserecords</a>   //To be implemented
+    }
+
+    @if (isAnalystGroup)
+    {
+        <a href="/records" class="nav-link">Records</a>   // To be implemented
+        <a href="/uphc-list" class="nav-link">UPHC List</a>  // To be implemented
+    }
+
+</div>
+
+@code {
+    bool isAnalystGroup = false;
+    bool isFacilityUser = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        // ❌ Facility users
+        isFacilityUser =
+            user.IsInRole("UPHCUser") ||
+            user.IsInRole("CHCUser") ||
+            user.IsInRole("UHWCUser");
+
+        // ✅ Analyst group = everyone except facility users
+        isAnalystGroup = !isFacilityUser;
+    }
+} *@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* <div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">UPHC.SurveillanceDashboard</a>
+    </div>
+</div>
+
+@* <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="counter">
+                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="weather">
+                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
+            </NavLink>
+        </div>
+    </nav>
+</div> 
+
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+
+<div class="nav flex-column p-2 bg-light" style="width:220px;">
+
+    <a href="/dashboard" class="nav-link">Dashboard</a>
+
+    @if (isUPHCUser)
+    {
+        <a href="/patiententry" class="nav-link">Patient Entry</a>
+    }
+
+    @if (isAnalyst)
+    {
+        <a href="/records" class="nav-link">Records</a>
+        <a href="/uphc-list" class="nav-link">UPHC List</a>
+    }
+
+</div>
+
+@code {
+    bool isAnalyst = false;
+    bool isUPHCUser = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isAnalyst = user.IsInRole("Analyst") || user.IsInRole("Admin");
+        isUPHCUser = user.IsInRole("UPHCUser");
+    }
+} 
+*@

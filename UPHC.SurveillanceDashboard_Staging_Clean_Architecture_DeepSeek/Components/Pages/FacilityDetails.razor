@@ -1,0 +1,524 @@
+﻿@page "/facility/{id:int}"
+@attribute [Authorize]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Facilities.Queries
+
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<div class="facility-page">
+
+    
+    <!-- HEADER -->
+    <div class="facility-header shadow-sm">
+        <div>
+            <h2 class="facility-title">
+                <i class="bi bi-hospital-fill me-2"></i>
+                @facilityName
+            </h2>
+
+            <div class="facility-address">
+                <i class="bi bi-geo-alt-fill me-1"></i>
+                @facilityAddress
+            </div>
+        </div>
+
+        <div class="facility-stats">
+            <div class="stats-card">
+                <div class="stats-count">@cases?.Count</div>
+                <div class="stats-label">Cases</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTENT -->
+    @if (cases == null)
+    {
+        <div class="loading-card shadow-sm">
+            <div class="spinner-border text-primary me-3"></div>
+            <span class="fw-semibold">Loading surveillance records...</span>
+        </div>
+    }
+    else if (cases.Count == 0)
+    {
+        <div class="empty-card shadow-sm">
+            <i class="bi bi-inbox-fill empty-icon"></i>
+            <h5>No Cases Found</h5>
+            <p class="text-muted mb-0">
+                No surveillance records are currently available for this facility.
+            </p>
+        </div>
+    }
+    else
+    {
+        <!-- TABLE -->
+       
+        <div class="facility-table-container">
+            <table class="custom-table">
+
+
+                <thead class="table-header">
+                    <tr>
+                        <th>Date</th>
+                        <th>Disease</th>
+                        <th>Patient</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var c in cases)
+                    {
+                        <tr class="table-row">
+
+                            <!-- DATE -->
+                            <td>
+                                <div class="fw-semibold text-dark">
+                                    @c.CreatedDate.ToString("dd MMM yyyy")
+                                </div>
+
+                                <small class="text-muted">
+                                    @c.CreatedDate.ToString("hh:mm tt")
+                                </small>
+                            </td>
+
+                            <!-- DISEASE -->
+                            <td>
+                                <span class="disease-badge">
+                                    @c.DiseaseName
+                                </span>
+                            </td>
+
+                            <!-- PATIENT -->
+                            <td>
+                                <div class="fw-semibold text-dark">
+                                    @c.PatientName
+                                </div>
+                            </td>
+
+                            <!-- ACTION -->
+                            <td class="text-center">
+                                <button class="btn btn-view"
+                                        @onclick="() => OpenCase(c.Id)">
+                                    <i class="bi bi-eye-fill me-1"></i>
+                                    View
+                                </button>
+                            </td>
+
+                        </tr>
+                    }
+                </tbody>
+
+            </table>
+        </div>
+
+        <!-- PAGINATION -->
+        <div class="pagination-container">
+
+            <button class="btn pagination-btn"
+                    @onclick="PrevPage"
+                    disabled="@(currentPage == 1)">
+                <i class="bi bi-arrow-left me-1"></i>
+                Previous
+            </button>
+
+            <div class="page-indicator shadow-sm">
+                Page @currentPage
+            </div>
+
+            <button class="btn pagination-btn"
+                    @onclick="NextPage">
+                Next
+                <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+
+        </div>
+    }
+    
+
+</div>
+
+@code {
+    [Parameter] public int id { get; set; }
+
+
+List<CaseListDto>? cases;
+
+    string facilityName = "";
+    string facilityAddress = "";
+
+    int currentPage = 1;
+    int pageSize = 10;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadCases();
+    }
+
+    async Task LoadCases()
+    {
+        var query = new GetCasesByFacilityQuery
+        {
+            FacilityId = id,
+            Page = currentPage,
+            PageSize = pageSize
+        };
+
+        var result = await Mediator.Send(query);
+
+        cases = result.Cases;
+        facilityName = result.FacilityName;
+        facilityAddress = result.FacilityAddress;
+    }
+
+    // async Task NextPage()
+    // {
+    //     currentPage++;
+    //     await LoadCases();
+    // }
+
+    async Task NextPage()
+    {
+        var nextPage = currentPage + 1;
+
+
+    var query = new GetCasesByFacilityQuery
+  {
+    FacilityId = id,
+    Page = nextPage,
+    PageSize = pageSize
+  } ;
+
+        var result = await Mediator.Send(query);
+
+        // Stop if no more data
+        if (result.Cases.Count == 0)
+            return;
+
+        currentPage = nextPage;
+
+        cases = result.Cases;
+        facilityName = result.FacilityName;
+        facilityAddress = result.FacilityAddress;
+
+
+}
+
+
+    async Task PrevPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await LoadCases();
+        }
+    }
+
+    void OpenCase(int caseId)
+    {
+        Navigation.NavigateTo($"/case-details/{caseId}");
+    }
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @page "/facility/{id:int}"
+@attribute [Authorize]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Facilities.Queries
+
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<h2 class="mb-3">@facilityName (@facilityAddress)</h2>
+
+@if (cases == null)
+{
+    <p>Loading...</p>
+}
+else if (cases.Count == 0)
+{
+    <p>No cases found</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Disease</th>
+                <th>Patient</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var c in cases)
+            {
+                <tr>
+                    <td>@c.CreatedDate.ToShortDateString()</td>
+                    <td>@c.DiseaseName</td>
+                    <td>@c.PatientName</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary"
+                                @onclick="() => OpenCase(c.Id)">
+                            View
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <!-- Pagination -->
+    <div class="d-flex justify-content-between">
+        <button class="btn btn-secondary" @onclick="PrevPage" disabled="@(currentPage == 1)">Prev</button>
+        <span>Page @currentPage</span>
+        <button class="btn btn-secondary" @onclick="NextPage">Next</button>
+    </div>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+
+    List<CaseListDto>? cases;
+    string facilityName = "";
+    string facilityAddress = "";
+    int currentPage = 1;
+    int pageSize = 10;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadCases();
+    }
+
+    async Task LoadCases()
+    {
+        var query = new GetCasesByFacilityQuery
+        {
+            FacilityId = id,
+            Page = currentPage,
+            PageSize = pageSize
+        };
+
+        var result = await Mediator.Send(query);
+
+        cases = result.Cases;
+        facilityName = result.FacilityName;
+        facilityAddress = result.FacilityAddress;
+    }
+
+    async Task NextPage()
+    {
+        currentPage++;
+        await LoadCases();
+    }
+
+    async Task PrevPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await LoadCases();
+        }
+    }
+
+    void OpenCase(int caseId)
+    {
+        Navigation.NavigateTo($"/case-details/{caseId}");
+    }
+}
+
+
+ *@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @page "/facility/{id:int}"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using UPHC.SurveillanceDashboard.Data
+@inject IDbContextFactory<AppDbContext_NOuse> DbFactory
+@inject NavigationManager Navigation
+
+<h2 class="mb-3">@FacilityName (@FacilityAddress)</h2>
+
+@if (cases == null)
+{
+    <p>Loading...</p>
+}
+else if (cases.Count == 0)
+{
+    <p>No cases found</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Disease</th>
+                <th>Patient</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var c in cases)
+            {
+                <tr>
+                    <td>@c.CreatedDate.ToShortDateString()</td>
+                    <td>@c.DiseaseName</td>
+                    <td>@c.PatientName</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary"
+                                @onclick="() => OpenCase(c.Id)">
+                            View
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <!-- Pagination -->
+    <div class="d-flex justify-content-between">
+        <button class="btn btn-secondary" @onclick="PrevPage" disabled="@(currentPage == 1)">Prev</button>
+        <span>Page @currentPage</span>
+        <button class="btn btn-secondary" @onclick="NextPage">Next</button>
+    </div>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+
+    List<CaseRecord>? cases;   //changes made due to warning "Dereference of a possibly null reference" in line 24 and 25
+    string FacilityName = "";
+    string FacilityAddress = "";
+
+    int currentPage = 1;
+    int pageSize = 10;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        using var db = DbFactory.CreateDbContext();
+
+        var facility = await db.Facilities.FindAsync(id);
+        if (facility != null)
+        {
+           FacilityName = facility.FacilityName;
+            FacilityAddress = facility.FacilityAddress;
+        }
+
+        await LoadCases();
+    }
+
+    async Task LoadCases()
+    {
+        using var db = DbFactory.CreateDbContext();
+
+        cases = await db.CaseRecords
+            .Where(c => c.FacilityId == id)
+            .OrderByDescending(c => c.CreatedDate)
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+    }
+
+    async Task NextPage()
+    {
+        currentPage++;
+        await LoadCases();
+    }
+
+    async Task PrevPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await LoadCases();
+        }
+    }
+
+    void OpenCase(int caseId)
+    {
+        Navigation.NavigateTo($"/case-details/{caseId}");
+    }
+} *@

@@ -1,0 +1,795 @@
+﻿@page "/case-edit/{id:int}"
+@attribute [Authorize(Roles = "UPHCUser,CHCUser,UHWCUser,MO,DEO,Admin")]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Cases.Queries
+@using Surveillance.Application.Features.Cases.Commands
+@using Surveillance.Application.Features.MasterData.Queries
+@using Surveillance.Domain.Entities
+
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Case</PageTitle>
+
+<div class="container-fluid facility-page">
+
+    @if (isLoading)
+    {
+        <div class="loading-card shadow-sm">
+            <div class="spinner-border text-primary me-3"></div>
+            <span class="fw-semibold">Loading case for edit...</span>
+        </div>
+    }
+    else if (caseEdit == null)
+    {
+        <div class="empty-card shadow-sm">
+            <div class="empty-icon">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <h4>Case not found</h4>
+        </div>
+    }
+    else
+    {
+        <div class="case-header shadow-sm">
+            <div>
+                <div class="case-title-section">
+                    <h2 class="case-title">
+                        <i class="bi bi-pencil-square me-2"></i>
+                        Edit Case #@caseEdit.Id
+                    </h2>
+
+                    <span class="case-status">
+                        @caseEdit.CaseStatus
+                    </span>
+                </div>
+
+                <div class="case-subtitle">
+                    Only case details are editable here. Sample and lab workflows remain separate.
+                </div>
+            </div>
+
+            <button class="btn-view" @onclick="GoToDetails">
+                <i class="bi bi-arrow-left me-2"></i>
+                Back to Details
+            </button>
+        </div>
+
+        <div class="case-card shadow-sm">
+
+            <EditForm Model="caseEdit" OnValidSubmit="HandleSave">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="section-card">
+                    <div class="section-title">
+                        <i class="bi bi-person-fill me-2"></i>
+                        Patient Information
+                    </div>
+
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Patient Name</div>
+                            <InputText @bind-Value="caseEdit.PatientName" class="form-control" />
+                        </div>
+
+                        <div class="detail-item">
+                            <div class="detail-label">Phone Number</div>
+                            <InputText @bind-Value="caseEdit.Phone" class="form-control" />
+                        </div>
+
+                        <div class="detail-item">
+                            <div class="detail-label">Disease</div>
+                            <InputText @bind-Value="caseEdit.DiseaseName" class="form-control" />
+                        </div>
+
+                        <div class="detail-item">
+                            <div class="detail-label">Onset Date</div>
+                            <InputDate @bind-Value="caseEdit.OnsetDate" class="form-control" />
+                        </div>
+
+                        <div class="detail-item">
+                            <div class="detail-label">Date Reported</div>
+                            <InputDate @bind-Value="caseEdit.DateReported" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="detail-label">Address</div>
+                        <InputTextArea @bind-Value="caseEdit.AddressOfPatient"
+                                       class="form-control"
+                                       rows="3" />
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="detail-label">Clinical Notes</div>
+                        <InputTextArea @bind-Value="caseEdit.Notes"
+                                       class="form-control"
+                                       rows="3" />
+                    </div>
+                </div>
+
+                <div class="section-card">
+                    <div class="section-title">
+                        <i class="bi bi-clipboard2-pulse-fill me-2"></i>
+                        Symptoms
+                    </div>
+
+                    <div class="row">
+                        @foreach (var symptom in symptoms)
+                        {
+                            <div class="col-md-3 mb-3">
+                                <div class="detail-item">
+                                    <div class="form-check">
+                                       @*  <InputCheckbox class="form-check-input"
+                                                       Value="@(selectedSymptomIds.Contains(symptom.Id))"
+                                                       ValueChanged="@(checkedValue => OnSymptomChanged(symptom.Id, checkedValue))" /> *@
+
+                                        <input type="checkbox"
+                                               class="form-check-input"
+                                               checked="@selectedSymptomIds.Contains(symptom.Id)"
+                                               @onchange="e => OnSymptomChanged(symptom.Id, (bool)e.Value!)" />
+
+                                        <label class="form-check-label ms-2 fw-semibold">
+                                            @symptom.Name
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="section-card">
+                    <div class="section-title">
+                        <i class="bi bi-droplet-fill me-2"></i>
+                        Sample Types
+                    </div>
+
+                    <div class="row">
+                        @foreach (var sample in sampleTypes)
+                        {
+                            <div class="col-md-3 mb-3">
+                                <div class="detail-item">
+                                    <div class="form-check">
+                                       @*  <InputCheckbox class="form-check-input"
+                                                       Value="@(selectedSampleTypeIds.Contains(sample.Id))"
+                                                       ValueChanged="@(checkedValue => OnSampleChanged(sample.Id, checkedValue))" /> *@
+
+                                        <input type="checkbox"
+                                               class="form-check-input"
+                                               checked="@selectedSampleTypeIds.Contains(sample.Id)"
+                                               @onchange="e => OnSampleChanged(sample.Id, (bool)e.Value!)" />
+
+                                        <label class="form-check-label ms-2 fw-semibold">
+                                            @sample.Name
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="text-muted small mt-2">
+                        Existing samples are not deleted from here. Newly selected sample types will be added only if missing.
+                    </div>
+                </div>
+
+                <div class="section-card">
+                    <div class="section-title">
+                        <i class="bi bi-eyedropper me-2"></i>
+                        Lab Tests
+                    </div>
+
+                    <div class="row">
+                        @foreach (var test in labTests)
+                        {
+                            <div class="col-md-3 mb-3">
+                                <div class="detail-item">
+                                    <div class="form-check">
+                                       @*  <InputCheckbox class="form-check-input"
+                                                       Value="@(selectedLabTestIds.Contains(test.Id))"
+                                                       ValueChanged="@(checkedValue => OnLabTestChanged(test.Id, checkedValue))" /> *@
+
+                                        <input type="checkbox"
+                                               class="form-check-input"
+                                               checked="@selectedLabTestIds.Contains(test.Id)"
+                                               @onchange="e => OnLabTestChanged(test.Id, (bool)e.Value!)" />
+
+                                        <label class="form-check-label ms-2 fw-semibold">
+                                            @test.Name
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="text-muted small mt-2">
+                        Existing lab tests are not deleted from here. Newly selected lab tests will be added only if missing.
+                    </div>
+                </div>
+
+                <div class="mt-4 d-flex gap-2">
+                    <button type="submit"
+                            class="btn-edit"
+                            disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span>
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                Saving...
+                            </span>
+                        }
+                        else
+                        {
+                            <span>
+                                <i class="bi bi-save-fill me-2"></i>
+                                Save Changes
+                            </span>
+                        }
+                    </button>
+
+                    <button type="button"
+                            class="btn-view"
+                            @onclick="GoToDetails">
+                        Cancel
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="custom-alert-overlay">
+            <div class="custom-alert-box @(success ? "success" : "error")">
+                <div class="alert-icon">
+                    @(success ? "✔️" : "❌")
+                </div>
+
+                <div class="alert-text">
+                    @message
+                </div>
+
+                <button class="alert-close" @onclick="CloseAlert">
+                    OK
+                </button>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public int id { get; set; }
+
+    private EditCaseDto? caseEdit;
+
+    private List<Symptom> symptoms = new();
+    private List<SampleType> sampleTypes = new();
+    private List<LabTest> labTests = new();
+
+    private List<int> selectedSymptomIds = new();
+    private List<int> selectedSampleTypeIds = new();
+    private List<int> selectedLabTestIds = new();
+
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool success;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        symptoms = await Mediator.Send(new GetAllSymptomsQuery());
+        sampleTypes = await Mediator.Send(new GetAllSampleTypesQuery());
+        labTests = await Mediator.Send(new GetAllLabTestsQuery());
+
+        caseEdit = await Mediator.Send(new GetCaseForEditQuery
+        {
+            Id = id
+        });
+
+        if (caseEdit != null)
+        {
+            selectedSymptomIds = caseEdit.SelectedSymptomIds.ToList();
+            selectedSampleTypeIds = caseEdit.SelectedSampleTypeIds.ToList();
+            selectedLabTestIds = caseEdit.SelectedLabTestIds.ToList();
+        }
+
+        isLoading = false;
+    }
+
+    private void OnSymptomChanged(int symptomId, bool isChecked)
+    {
+        if (isChecked)
+        {
+            if (!selectedSymptomIds.Contains(symptomId))
+                selectedSymptomIds.Add(symptomId);
+        }
+        else
+        {
+            selectedSymptomIds.Remove(symptomId);
+        }
+    }
+
+    private void OnSampleChanged(int sampleTypeId, bool isChecked)
+    {
+        if (isChecked)
+        {
+            if (!selectedSampleTypeIds.Contains(sampleTypeId))
+                selectedSampleTypeIds.Add(sampleTypeId);
+        }
+        else
+        {
+            selectedSampleTypeIds.Remove(sampleTypeId);
+        }
+    }
+
+    private void OnLabTestChanged(int labTestId, bool isChecked)
+    {
+        if (isChecked)
+        {
+            if (!selectedLabTestIds.Contains(labTestId))
+                selectedLabTestIds.Add(labTestId);
+        }
+        else
+        {
+            selectedLabTestIds.Remove(labTestId);
+        }
+    }
+
+    private async Task HandleSave()
+    {
+        if (caseEdit == null || isSaving)
+            return;
+
+        isSaving = true;
+
+        try
+        {
+            var result = await Mediator.Send(new UpdateCaseCommand
+            {
+                Id = caseEdit.Id,
+                PatientName = caseEdit.PatientName,
+                Phone = caseEdit.Phone,
+                DiseaseName = caseEdit.DiseaseName,
+                AddressOfPatient = caseEdit.AddressOfPatient,
+                OnsetDate = caseEdit.OnsetDate,
+                DateReported = caseEdit.DateReported,
+                Notes = caseEdit.Notes,
+                SymptomIds = selectedSymptomIds,
+                SampleTypeIds = selectedSampleTypeIds,
+                LabTestIds = selectedLabTestIds
+            });
+
+            if (result)
+            {
+                success = true;
+                message = "Case updated successfully.";
+            }
+            else
+            {
+                success = false;
+                message = "Case not found.";
+            }
+        }
+        catch (Exception ex)
+        {
+            success = false;
+            message = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoToDetails()
+    {
+        Navigation.NavigateTo($"/case-details/{id}");
+    }
+
+    private void CloseAlert()
+    {
+        message = null;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @page "/case-edit/{id:int}"
+@attribute [Authorize(Roles = "UPHCUser,CHCUser,UHWCUser,Admin")]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Cases.Queries
+@using Surveillance.Application.Features.Cases.Commands
+@using Surveillance.Domain.Enums
+
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<h3>Edit Case Status</h3>
+
+@if (caseDetails == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="card p-4 shadow">
+
+        <p><b>Patient:</b> @caseDetails.PatientName</p>
+        <p><b>Disease:</b> @caseDetails.DiseaseName</p>
+        <p><b>Facility Name:</b> @caseDetails.FacilityName</p>
+
+        <!-- ONLY STATUS EDITABLE -->
+        <div class="mb-3">
+            <label>Status</label>
+            <InputSelect @bind-Value="selectedStatus"
+                         TValue="CaseStatus"
+                         class="form-control">
+                <option value="Suspected">Suspected</option>
+                <option value="Confirmed">Confirmed</option>
+                <option value="Negative">Negative</option>
+            </InputSelect>
+        </div>
+
+        <button class="btn btn-success"
+                @onclick="HandleUpdate"
+                disabled="@(originalStatus == selectedStatus)">
+            Save
+        </button>
+
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div class="custom-alert-overlay">
+                <div class="custom-alert-box @(success ? "success" : "error")">
+                    <div class="alert-icon">
+                        @(success ? "✔️" : "❌")
+                    </div>
+                    <div class="alert-text">
+                        @message
+                    </div>
+                    <button class="alert-close" @onclick="CloseAlert">OK</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+
+    CaseDetailsDto? caseDetails;
+    CaseStatus selectedStatus;
+    CaseStatus originalStatus;
+    bool success = false;
+    string? message = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var query = new GetCaseByIdQuery { Id = id };
+        caseDetails = await Mediator.Send(query);
+
+        if (caseDetails != null)
+        {
+            // Parse status string to enum
+            Enum.TryParse<CaseStatus>(caseDetails.Status, out var status);
+            selectedStatus = status;
+            originalStatus = status;
+        }
+    }
+
+    private async Task HandleUpdate()
+    {
+        var command = new UpdateCaseStatusCommand
+        {
+            Id = id,
+            NewStatus = selectedStatus
+        };
+
+        var result = await Mediator.Send(command);
+
+        if (result)
+        {
+            success = true;
+            message = selectedStatus == CaseStatus.Confirmed
+                ? $"Case Status Updated. ALERT Sent!"
+                : $"Case Status Updated.";
+        }
+        else
+        {
+            message = "No changes made";
+        }
+
+        Navigation.NavigateTo("/dashboard");
+    }
+
+    void CloseAlert()
+    {
+        message = null;
+    }
+}
+ *@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@*@page "/case-edit/{id:int}"
+@attribute [Authorize(Roles = "UPHCUser,CHCUser,UHWCUser,Admin")]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using UPHC.SurveillanceDashboard.Data
+@using UPHC.SurveillanceDashboard.Models
+@using UPHC.SurveillanceDashboard.Services
+
+@inject IDbContextFactory<AppDbContext_NOuse> DbFactory
+@inject NotificationService NotifService
+@inject NavigationManager Navigation
+
+<h3>Edit Case Status</h3>
+
+@if (caseRecord == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="card p-4 shadow">
+
+        <p><b>Patient:</b> @caseRecord.PatientName</p>
+        <p><b>Disease:</b> @caseRecord.DiseaseName</p>
+        <p><b>Facility Name:</b> @(caseRecord.Facility?.FacilityName ?? "N/A")</p>
+
+        <!-- ONLY STATUS EDITABLE -->
+        <div class="mb-3">
+            <label>Status</label>
+            <!--enums values are unreadable so use @@bind-value-->
+            <InputSelect @bind-Value="caseRecord.Status"      
+                         TValue="CaseStatus"
+                         class="form-control">
+
+                <option value="Suspected">Suspected</option>
+                <option value="Confirmed">Confirmed</option>
+                <option value="Negative">Negative</option>
+
+            </InputSelect>
+        </div>
+
+        <button class="btn btn-success"
+                @onclick="HandleUpdate"
+                disabled="@(originalStatus != null && caseRecord.Status == originalStatus)">
+            Save
+        </button>
+
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div class="custom-alert-overlay">
+                <div class="custom-alert-box @(success ? "success" : "error")">
+
+                    <div class="alert-icon">
+                        @(success ? "✔️" : "❌")
+                    </div>
+
+                    <div class="alert-text">
+                        @message
+                    </div>
+
+                    <button class="alert-close" @onclick="CloseAlert">OK</button>
+
+                </div>
+            </div>
+        }
+
+      
+
+    </div>
+}
+
+@code {
+    bool success = false;
+    CaseStatus? originalStatus;
+    [Parameter] public int id { get; set; }
+
+    CaseRecord? caseRecord;
+    string? message = "";
+
+
+    protected override async Task OnParametersSetAsync()
+    {
+        using var db = DbFactory.CreateDbContext();
+
+        caseRecord = await db.CaseRecords
+            .Include(c => c.Facility)
+            .FirstOrDefaultAsync(c => c.Id == id);
+
+        if (caseRecord != null)
+        {
+            originalStatus = caseRecord.Status; 
+        }
+    }
+
+    // protected override async Task OnParametersSetAsync()
+    // {
+    //     using var db = DbFactory.CreateDbContext();
+
+    //     caseRecord = await db.CaseRecords
+    //         .Include(c => c.UPHC)
+    //         .FirstOrDefaultAsync(c => c.Id == id);
+    // }
+
+    // private void OnStatusChanged(ChangeEventArgs e)
+    // {
+    //     caseRecord.Status = Enum.Parse<CaseStatus>(e.Value.ToString());
+
+    //     if (caseRecord.Status == CaseStatus.Confirmed ||
+    //         caseRecord.Status == CaseStatus.Negative)
+    //     {
+    //         caseRecord.LabConfirmedDate = DateTime.Now;
+    //     }
+    // }
+
+
+
+    private async Task HandleUpdate()
+    {
+        using var db = DbFactory.CreateDbContext();
+
+        var existing = await db.CaseRecords.FindAsync(caseRecord.Id);
+        if (existing == null) return;
+
+        //  ONLY UPDATE IF STATUS CHANGED
+        if (existing.Status != caseRecord.Status)
+        {
+            existing.Status = caseRecord.Status;
+
+            if (existing.Status == CaseStatus.Confirmed ||
+                existing.Status == CaseStatus.Negative)
+            {
+                existing.LabConfirmedDate = DateTime.Now.ToUniversalTime();
+            }
+
+            await db.SaveChangesAsync();
+
+            //  SEND NOTIFICATION
+            if (existing.Status == CaseStatus.Confirmed)
+            {
+                await NotifService.SendNotification(existing.Id,NotificationType.ConfirmedPositive);
+                message = $"Case Status Updated. ALERT Sent For {caseRecord.DiseaseName}!";
+            }
+            else if (existing.Status == CaseStatus.Negative)
+            {
+                await NotifService.SendNotification(existing.Id,NotificationType.ConfirmedNegative);
+                message = $"Case Status Updated.";
+
+            }
+            success = true;
+            //  DASHBOARD REFRESH
+            await NotifService.NotifyDashboardUpdate();
+           
+
+           
+        }
+        else
+        {
+            message = "No changes made";
+        }
+
+        Navigation.NavigateTo("/dashboard");
+    }
+
+
+    void CloseAlert()
+    {
+        message = null;
+    }
+
+    // private async Task HandleUpdate()
+    // {
+    //     using var db = DbFactory.CreateDbContext();
+
+    //     var existing = await db.CaseRecords.FindAsync(caseRecord.Id);
+    //     if (existing == null) return;
+
+    //     existing.Status = caseRecord.Status;
+    //     existing.LabConfirmedDate = caseRecord.LabConfirmedDate;
+
+    //     await db.SaveChangesAsync();
+
+    //     // SECOND NOTIFICATION
+    //     if (existing.Status == CaseStatus.Confirmed)
+    //     {
+    //         await NotifService.SendNotification(existing.Id, "Confirmed");
+    //     }
+    //     else if (existing.Status == CaseStatus.Negative)
+    //     {
+    //         await NotifService.SendNotification(existing.Id, "Negative");
+    //     }
+
+    //     //  DASHBOARD REFRESH TRIGGER
+    //     await NotifService.NotifyDashboardUpdate();
+
+    //     message = "Case updated successfully";
+
+    //     // optional redirect
+    //     Navigation.NavigateTo("/dashboard");
+    // }
+}*@

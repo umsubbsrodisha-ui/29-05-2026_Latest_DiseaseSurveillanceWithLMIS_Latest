@@ -1,0 +1,73 @@
+﻿
+@inject NavigationManager Navigation
+
+@code {
+
+    protected override void OnInitialized()
+    {
+        var relativePath =
+            Navigation.ToBaseRelativePath(Navigation.Uri);
+
+        var returnUrl =
+            Uri.EscapeDataString("/" + relativePath);
+
+        Navigation.NavigateTo(
+            $"/login?returnUrl={returnUrl}",
+            true);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @inject NavigationManager Navigation
+
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/login", true);
+    }
+} *@
+
+@* 
+@inject NavigationManager Navigation
+
+@code {
+    protected override void OnInitialized()
+    {
+        var returnUrl = Uri.EscapeDataString(Navigation.Uri);
+        Navigation.NavigateTo($"Identity/Account/Login?returnUrl={returnUrl}", true);
+    }
+} *@
+
+
+

@@ -1,0 +1,1419 @@
+﻿@page "/lab-report/case/{CaseRecordId:int}"
+@attribute [Authorize(Roles = "MO,MB,Admin,Analyst")]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Lab.Queries
+
+@inject IMediator Mediator
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Case Laboratory Report</PageTitle>
+
+@if (isLoading)
+{
+    <div class="loading-card shadow-sm">
+        <div class="spinner-border text-primary me-3"></div>
+        <span class="fw-semibold">Loading lab report...</span>
+    </div>
+}
+else if (report == null)
+{
+    <div class="alert alert-danger">
+        Report not found.
+    </div>
+}
+else
+{
+    <div class="lab-report-page">
+
+        <div class="report-actions no-print">
+            <button class="btn btn-secondary" @onclick="GoBack">
+                ← Back
+            </button>
+
+            <button class="btn btn-primary" @onclick="PrintReport">
+                🖨 Print / Save as PDF
+            </button>
+        </div>
+
+        <div id="lab-report-print-area" class="official-report-card">
+
+            <div class="official-report-header">
+                <div class="report-logo-wrap">
+                    <img src="/images/emblem.png" class="report-logo" />
+                </div>
+
+                <div class="report-title-wrap">
+                    <h1>Integrated Health Information Platform</h1>
+                    <h2>Integrated Disease Surveillance Programme</h2>
+                    <p>Ministry of Health and Family Welfare, Government of India</p>
+                    <div class="report-title-line">Case Laboratory Investigation Report</div>
+                </div>
+
+                <div class="report-logo-wrap text-end">
+                    <img src="/images/idsp-logo.png" class="report-logo" />
+                </div>
+            </div>
+
+            <div class="report-status-row">
+                <div>
+                    <span class="report-label">Case ID</span>
+                    <span class="report-value">#@report.CaseRecordId</span>
+                </div>
+
+                <div>
+                    <span class="result-badge @(report.IsVerified ? "negative" : "pending")">
+                        @(report.IsVerified ? "Verified Report" : "Pending Verification")
+                    </span>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <div class="report-section-title">Patient Information</div>
+
+                <div class="report-grid">
+                    <div>
+                        <div class="report-label">Patient Name</div>
+                        <div class="report-value">@report.PatientName</div>
+                    </div>
+
+                    <div>
+                        <div class="report-label">Phone</div>
+                        <div class="report-value">@report.Phone</div>
+                    </div>
+
+                    <div>
+                        <div class="report-label">Disease / Syndrome</div>
+                        <div class="report-value">@report.DiseaseName</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <div class="report-section-title">Sample Information</div>
+
+                <div class="report-grid">
+                    <div>
+                        <div class="report-label">Facility</div>
+                        <div class="report-value">@report.FacilityName</div>
+                    </div>
+
+                    <div>
+                        <div class="report-label">Sample Type</div>
+                        <div class="report-value">@report.SampleType</div>
+                    </div>
+
+                    <div>
+                        <div class="report-label">Barcode</div>
+                        <div class="report-value barcode-text">@report.Barcode</div>
+                    </div>
+
+                    <div>
+                        <div class="report-label">Collected At</div>
+                        <div class="report-value">
+                            @(report.CollectedAt.HasValue
+                                ? report.CollectedAt.Value.ToLocalTime().ToString("dd MMM yyyy hh:mm tt")
+                                : "-")
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <div class="report-section-title">Test Results</div>
+
+                <table class="official-report-table">
+                    <thead>
+                        <tr>
+                            <th>Lab Test</th>
+                            <th>Status</th>
+                            <th>Result Value</th>
+                            <th>Verified</th>
+                            <th>Tested At</th>
+                            <th>Remarks</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var test in report.Tests)
+                        {
+                            <tr>
+                                <td>@test.LabTestName</td>
+
+                                <td>
+                                    <span class="result-text @(test.ResultStatus == "Positive" ? "positive-text" : "negative-text")">
+                                        @test.ResultStatus
+                                    </span>
+                                </td>
+
+                                <td>
+                                    @(string.IsNullOrWhiteSpace(test.ResultValue)
+                                        ? "-"
+                                        : test.ResultValue)
+                                </td>
+
+                                <td>
+                                    @(test.IsVerified ? "Yes" : "No")
+                                </td>
+
+                                <td>
+                                    @(test.TestedAt.HasValue
+                                        ? test.TestedAt.Value.ToLocalTime().ToString("dd MMM yyyy hh:mm tt")
+                                        : "-")
+                                </td>
+
+                                <td>
+                                    @(string.IsNullOrWhiteSpace(test.Remarks)
+                                        ? "-"
+                                        : test.Remarks)
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="report-footer-section">
+                <div>
+                    <div class="report-label">Generated On</div>
+                    <div class="report-value">
+                        @DateTime.Now.ToString("dd MMM yyyy hh:mm tt")
+                    </div>
+                </div>
+
+                <div class="signature-box">
+                    <div class="signature-line"></div>
+                    <div class="signature-title">Authorized Laboratory Officer</div>
+                </div>
+            </div>
+
+            <div class="report-disclaimer">
+                This is a system-generated case-level laboratory report under the Integrated Disease Surveillance Programme.
+                It contains all lab test results recorded for this case.
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .lab-report-page {
+        padding: 24px;
+        max-width: 1180px;
+        margin: 0 auto;
+    }
+
+    .report-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .official-report-card {
+        background: #ffffff;
+        border-radius: 18px;
+        padding: 28px;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+        border: 1px solid #e5e7eb;
+        color: #111827;
+        overflow: hidden;
+    }
+
+    .official-report-header {
+        display: grid;
+        grid-template-columns: 110px 1fr 110px;
+        gap: 18px;
+        align-items: center;
+        border-bottom: 3px solid #0f766e;
+        padding-bottom: 18px;
+        margin-bottom: 18px;
+    }
+
+    .report-logo {
+        max-width: 90px;
+        max-height: 90px;
+        object-fit: contain;
+    }
+
+    .report-title-wrap {
+        text-align: center;
+    }
+
+        .report-title-wrap h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0;
+            color: #1f2937;
+        }
+
+        .report-title-wrap h2 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 4px 0;
+            color: #374151;
+        }
+
+        .report-title-wrap p {
+            margin: 0;
+            color: #6b7280;
+            font-size: 15px;
+        }
+
+    .report-title-line {
+        margin-top: 12px;
+        display: inline-block;
+        padding: 8px 18px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #0f766e, #16a34a);
+        color: white;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 14px;
+    }
+
+    .report-status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8fafc;
+        border-radius: 14px;
+        padding: 14px 18px;
+        margin-bottom: 18px;
+        border: 1px solid #e5e7eb;
+        overflow-wrap: anywhere;
+    }
+
+    .result-badge {
+        padding: 9px 22px;
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: 16px;
+        border: 1px solid transparent;
+    }
+
+        .result-badge.positive {
+            color: #991b1b;
+            background: #fee2e2;
+            border-color: #fecaca;
+        }
+
+        .result-badge.negative {
+            color: #166534;
+            background: #dcfce7;
+            border-color: #bbf7d0;
+        }
+
+        .result-badge.pending {
+            color: #92400e;
+            background: #fef3c7;
+            border-color: #fde68a;
+        }
+
+    .report-section {
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 18px;
+        margin-bottom: 18px;
+        background: #ffffff;
+        page-break-inside: avoid;
+    }
+
+    .report-section-title {
+        font-size: 18px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px dashed #cbd5e1;
+    }
+
+    .report-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+    }
+
+    .report-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 800;
+        color: #64748b;
+        margin-bottom: 5px;
+    }
+
+    .report-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #111827;
+        overflow-wrap: anywhere;
+    }
+
+    .barcode-text {
+        font-family: Consolas, monospace;
+        font-size: 14px;
+    }
+
+    .official-report-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+        .official-report-table th {
+            background: #0f766e;
+            color: white;
+            padding: 12px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            text-align: left;
+        }
+
+        .official-report-table td {
+            border: 1px solid #e5e7eb;
+            padding: 12px;
+            vertical-align: top;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+    .positive-text {
+        color: #dc2626;
+        font-weight: 900;
+    }
+
+    .negative-text {
+        color: #16a34a;
+        font-weight: 900;
+    }
+
+    .report-footer-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-top: 28px;
+        gap: 24px;
+        page-break-inside: avoid;
+    }
+
+    .signature-box {
+        width: 280px;
+        text-align: center;
+    }
+
+    .signature-line {
+        border-bottom: 2px solid #111827;
+        height: 48px;
+        margin-bottom: 8px;
+    }
+
+    .signature-title {
+        font-weight: 800;
+        color: #111827;
+    }
+
+    .report-disclaimer {
+        margin-top: 18px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 12px;
+        padding: 12px;
+        font-size: 13px;
+        color: #92400e;
+    }
+
+    @@media (max-width: 768px) {
+        .lab-report-page {
+            padding: 12px;
+        }
+
+        .official-report-card {
+            padding: 16px;
+        }
+
+        .official-report-header {
+            grid-template-columns: 70px 1fr 70px;
+            gap: 10px;
+        }
+
+        .report-logo {
+            max-width: 60px;
+            max-height: 60px;
+        }
+
+        .report-title-wrap h1 {
+            font-size: 18px;
+        }
+
+        .report-title-wrap h2 {
+            font-size: 15px;
+        }
+
+        .report-title-wrap p {
+            font-size: 12px;
+        }
+
+        .report-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .report-status-row,
+        .report-footer-section {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .signature-box {
+            width: 100%;
+        }
+    }
+
+    @@media print {
+        body {
+            background: white !important;
+        }
+
+            body * {
+                visibility: hidden;
+            }
+
+        #lab-report-print-area,
+        #lab-report-print-area * {
+            visibility: visible;
+        }
+
+        #lab-report-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+
+        .no-print,
+        .sidebar-container,
+        .mobile-nav,
+        .topbar,
+        .navbar,
+        header,
+        footer,
+        aside,
+        .layout-header,
+        .layout-sidebar,
+        .main-sidebar,
+        .page-header {
+            display: none !important;
+        }
+
+        .dashboard-container {
+            padding: 0 !important;
+        }
+
+        .lab-report-page {
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: none !important;
+        }
+
+        .official-report-card {
+            box-shadow: none !important;
+            border: 1px solid #111827 !important;
+            border-radius: 0 !important;
+            padding: 18mm !important;
+            width: 100% !important;
+        }
+
+        .official-report-header {
+            grid-template-columns: 90px 1fr 90px;
+        }
+
+        .report-logo {
+            max-width: 75px !important;
+            max-height: 75px !important;
+        }
+
+        .report-section,
+        .report-disclaimer {
+            break-inside: avoid;
+        }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int CaseRecordId { get; set; }
+
+    private bool isLoading = true;
+
+    private CaseLabReportDto? report;
+
+    protected override async Task OnInitializedAsync()
+    {
+        report = await Mediator.Send(
+            new GetCaseLabReportByCaseIdQuery
+            {
+                CaseRecordId = CaseRecordId
+            });
+
+        isLoading = false;
+    }
+
+    private async Task PrintReport()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo($"/case-details/{CaseRecordId}");
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @page "/lab-report/{LabResultId:guid}"
+@attribute [Authorize(Roles = "MO,MB,Admin,Analyst")]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Lab.Queries
+
+@inject IMediator Mediator
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Laboratory Report</PageTitle>
+
+@if (isLoading)
+{
+    <div class="loading-card shadow-sm">
+        <div class="spinner-border text-primary me-3"></div>
+        <span class="fw-semibold">Loading lab report...</span>
+    </div>
+}
+else if (report == null)
+{
+    <div class="alert alert-danger">
+        Report not found.
+    </div>
+}
+else
+{
+    <div class="lab-report-page">
+
+        <div class="report-actions no-print">
+            <button class="btn btn-secondary" @onclick="GoBack">
+                ← Back
+            </button>
+
+            <button class="btn btn-primary" @onclick="PrintReport">
+                🖨 Print / Save as PDF
+            </button>
+        </div>
+
+        <div id="lab-report-print-area" class="official-report-card">
+
+            <div class="official-report-header">
+                <div class="report-logo-wrap">
+                    <img src="/images/emblem.png" class="report-logo" />
+                </div>
+
+                <div class="report-title-wrap">
+                    <h1>Integrated Health Information Platform</h1>
+                    <h2>Integrated Disease Surveillance Programme</h2>
+                    <p>Ministry of Health and Family Welfare, Government of India</p>
+                    <div class="report-title-line">Laboratory Investigation Report</div>
+                </div>
+
+                <div class="report-logo-wrap text-end">
+                    <img src="/images/idsp-logo.png" class="report-logo" />
+                </div>
+            </div>
+
+            <div class="report-status-row">
+                <div>
+                    <span class="report-label">Report ID</span>
+                    <span class="report-value">@LabResultId</span>
+                </div>
+
+                <div>
+                    <span class="result-badge @(report.ResultStatus == "Positive" ? "positive" : "negative")">
+                        @report.ResultStatus
+                    </span>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <div class="report-section-title">Patient Information</div>
+
+                <div class="report-grid">
+                    <div>
+                        <div class="report-label">Patient Name</div>
+                        <div class="report-value">@report.PatientName</div>
+                    </div>
+
+                    <div>
+                        <div class="report-label">Phone</div>
+                        <div class="report-value">@report.Phone</div>
+                    </div>
+
+                    <div>
+                        <div class="report-label">Disease / Syndrome</div>
+                        <div class="report-value">@report.DiseaseName</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <div class="report-section-title">Sample Information</div>
+
+                <div class="report-grid">
+                    <div>
+                        <div class="report-label">Facility</div>
+                        <div class="report-value">@report.FacilityName</div>
+                    </div>
+
+                    <div>
+                        <div class="report-label">Sample Type</div>
+                        <div class="report-value">@report.SampleTypeName</div>
+                    </div>
+
+                    <div>
+                        <div class="report-label">Barcode</div>
+                        <div class="report-value barcode-text">@report.SampleBarcode</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <div class="report-section-title">Test Result</div>
+
+                <table class="official-report-table">
+                    <thead>
+                        <tr>
+                            <th>Lab Test</th>
+                            <th>Result Status</th>
+                            <th>Result Value</th>
+                            <th>Verified</th>
+                            <th>Entered At</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>@report.LabTestName</td>
+                            <td>
+                                <span class="result-text @(report.ResultStatus == "Positive" ? "positive-text" : "negative-text")">
+                                    @report.ResultStatus
+                                </span>
+                            </td>
+                            <td>@report.ResultValue</td>
+                            <td>@(report.IsVerified ? "Yes" : "No")</td>
+                            <td>@report.EnteredAt.ToLocalTime().ToString("dd MMM yyyy hh:mm tt")</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="remarks-area">
+                    <div class="report-label">Remarks</div>
+                    <div class="remarks-box">
+                        @(string.IsNullOrWhiteSpace(report.Remarks)
+                            ? "No remarks recorded."
+                            : report.Remarks)
+                    </div>
+                </div>
+            </div>
+
+            <div class="report-footer-section">
+                <div>
+                    <div class="report-label">Generated On</div>
+                    <div class="report-value">
+                        @DateTime.Now.ToString("dd MMM yyyy hh:mm tt")
+                    </div>
+                </div>
+
+                <div class="signature-box">
+                    <div class="signature-line"></div>
+                    <div class="signature-title">Authorized Laboratory Officer</div>
+                </div>
+            </div>
+
+            <div class="report-disclaimer">
+                This is a system-generated laboratory report under the Integrated Disease Surveillance Programme.
+                Verification status must be checked before clinical or public-health action.
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .lab-report-page {
+        padding: 24px;
+        max-width: 1180px;
+        margin: 0 auto;
+    }
+
+    .report-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .official-report-card {
+        background: #ffffff;
+        border-radius: 18px;
+        padding: 28px;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+        border: 1px solid #e5e7eb;
+        color: #111827;
+        overflow: hidden;
+    }
+
+    .official-report-header {
+        display: grid;
+        grid-template-columns: 110px 1fr 110px;
+        gap: 18px;
+        align-items: center;
+        border-bottom: 3px solid #0f766e;
+        padding-bottom: 18px;
+        margin-bottom: 18px;
+    }
+
+    .report-logo {
+        max-width: 90px;
+        max-height: 90px;
+        object-fit: contain;
+    }
+
+    .report-title-wrap {
+        text-align: center;
+    }
+
+        .report-title-wrap h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0;
+            color: #1f2937;
+        }
+
+        .report-title-wrap h2 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 4px 0;
+            color: #374151;
+        }
+
+        .report-title-wrap p {
+            margin: 0;
+            color: #6b7280;
+            font-size: 15px;
+        }
+
+    .report-title-line {
+        margin-top: 12px;
+        display: inline-block;
+        padding: 8px 18px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #0f766e, #16a34a);
+        color: white;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 14px;
+    }
+
+    .report-status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8fafc;
+        border-radius: 14px;
+        padding: 14px 18px;
+        margin-bottom: 18px;
+        border: 1px solid #e5e7eb;
+        overflow-wrap: anywhere;
+    }
+
+    .result-badge {
+        padding: 9px 22px;
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: 16px;
+        border: 1px solid transparent;
+    }
+
+        .result-badge.positive {
+            color: #991b1b;
+            background: #fee2e2;
+            border-color: #fecaca;
+        }
+
+        .result-badge.negative {
+            color: #166534;
+            background: #dcfce7;
+            border-color: #bbf7d0;
+        }
+
+    .report-section {
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 18px;
+        margin-bottom: 18px;
+        background: #ffffff;
+        page-break-inside: avoid;
+    }
+
+    .report-section-title {
+        font-size: 18px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px dashed #cbd5e1;
+    }
+
+    .report-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+    }
+
+    .report-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 800;
+        color: #64748b;
+        margin-bottom: 5px;
+    }
+
+    .report-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #111827;
+        overflow-wrap: anywhere;
+    }
+
+    .barcode-text {
+        font-family: Consolas, monospace;
+        font-size: 14px;
+    }
+
+    .official-report-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+        .official-report-table th {
+            background: #0f766e;
+            color: white;
+            padding: 12px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            text-align: left;
+        }
+
+        .official-report-table td {
+            border: 1px solid #e5e7eb;
+            padding: 12px;
+            vertical-align: top;
+            overflow-wrap: anywhere;
+        }
+
+    .positive-text {
+        color: #dc2626;
+        font-weight: 900;
+    }
+
+    .negative-text {
+        color: #16a34a;
+        font-weight: 900;
+    }
+
+    .remarks-area {
+        margin-top: 18px;
+    }
+
+    .remarks-box {
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 14px;
+        min-height: 70px;
+        overflow-wrap: anywhere;
+    }
+
+    .report-footer-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-top: 28px;
+        gap: 24px;
+        page-break-inside: avoid;
+    }
+
+    .signature-box {
+        width: 280px;
+        text-align: center;
+    }
+
+    .signature-line {
+        border-bottom: 2px solid #111827;
+        height: 48px;
+        margin-bottom: 8px;
+    }
+
+    .signature-title {
+        font-weight: 800;
+        color: #111827;
+    }
+
+    .report-disclaimer {
+        margin-top: 18px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 12px;
+        padding: 12px;
+        font-size: 13px;
+        color: #92400e;
+    }
+
+    @@media (max-width: 768px) {
+        .lab-report-page {
+            padding: 12px;
+        }
+
+        .official-report-card {
+            padding: 16px;
+        }
+
+        .official-report-header {
+            grid-template-columns: 70px 1fr 70px;
+            gap: 10px;
+        }
+
+        .report-logo {
+            max-width: 60px;
+            max-height: 60px;
+        }
+
+        .report-title-wrap h1 {
+            font-size: 18px;
+        }
+
+        .report-title-wrap h2 {
+            font-size: 15px;
+        }
+
+        .report-title-wrap p {
+            font-size: 12px;
+        }
+
+        .report-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .report-status-row,
+        .report-footer-section {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .signature-box {
+            width: 100%;
+        }
+    }
+
+    @@media print {
+        body {
+            background: white !important;
+        }
+
+        .no-print,
+        .sidebar-container,
+        .mobile-nav,
+        .gov-logo,
+        .profile-avatar,
+        .notification-count,
+        .notification-dot {
+            display: none !important;
+        }
+
+        .dashboard-container {
+            padding: 0 !important;
+        }
+
+        .lab-report-page {
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: none !important;
+        }
+
+        .official-report-card {
+            box-shadow: none !important;
+            border: 1px solid #111827 !important;
+            border-radius: 0 !important;
+            padding: 18mm !important;
+            width: 100% !important;
+        }
+
+        .official-report-header {
+            grid-template-columns: 90px 1fr 90px;
+        }
+
+        .report-logo {
+            max-width: 75px !important;
+            max-height: 75px !important;
+        }
+
+        .report-section {
+            break-inside: avoid;
+        }
+
+        .report-disclaimer {
+            break-inside: avoid;
+        }
+    }
+
+
+    .sidebar-container,
+    .mobile-nav,
+    .topbar,
+    .navbar,
+    header,
+    footer,
+    aside,
+    .layout-header,
+    .layout-sidebar,
+    .main-sidebar,
+    .page-header,
+    .no-print {
+        display: none !important;
+    }
+    body * {
+        visibility: hidden;
+    }
+
+    #lab-report-print-area,
+    #lab-report-print-area * {
+        visibility: visible;
+    }
+
+    #lab-report-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+</style>
+
+@code {
+
+    [Parameter]
+    public Guid LabResultId { get; set; }
+
+    private bool isLoading = true;
+
+    private LabReportDto? report;
+
+    protected override async Task OnInitializedAsync()
+    {
+        report = await Mediator.Send(
+            new GetLabReportByIdQuery
+            {
+                LabResultId = LabResultId
+            });
+
+        isLoading = false;
+    }
+
+    private async Task PrintReport()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+}
+
+ *@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @page "/lab-report/{LabResultId:guid}"
+@attribute [Authorize(Roles = "MO,MB,Admin,Analyst")]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Lab.Queries
+
+@inject IMediator Mediator
+
+<PageTitle>Lab Report</PageTitle>
+
+@if (isLoading)
+{
+    <div class="loading-card shadow-sm">
+        <div class="spinner-border text-primary me-3"></div>
+        <span class="fw-semibold">Loading lab report...</span>
+    </div>
+}
+else if (report == null)
+{
+    <div class="alert alert-danger">
+        Report not found.
+    </div>
+}
+else
+{
+    <div class="container-fluid">
+
+        <div class="report-card shadow-lg">
+
+            <!-- HEADER -->
+            <div class="report-header">
+
+                <div>
+                    <h2 class="mb-1">
+                        Laboratory Report
+                    </h2>
+
+                    <div class="small opacity-75">
+                        Integrated Disease Surveillance Programme
+                    </div>
+                </div>
+
+                <div class="text-end">
+                    <div class="badge bg-light text-dark fs-6 px-3 py-2">
+                        @report.ResultStatus
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- BODY -->
+            <div class="report-body">
+
+                <!-- PATIENT -->
+                <div class="section-card">
+
+                    <div class="section-title">
+                        Patient Information
+                    </div>
+
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <label>Name</label>
+                            <div>@report.PatientName</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>Phone</label>
+                            <div>@report.Phone</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>Disease</label>
+                            <div>@report.DiseaseName</div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- SAMPLE -->
+                <div class="section-card">
+
+                    <div class="section-title">
+                        Sample Information
+                    </div>
+
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <label>Facility</label>
+                            <div>@report.FacilityName</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>Sample Type</label>
+                            <div>@report.SampleTypeName</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>Barcode</label>
+                            <div>@report.SampleBarcode</div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- RESULT -->
+                <div class="section-card">
+
+                    <div class="section-title">
+                        Test Result
+                    </div>
+
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <label>Lab Test</label>
+                            <div>@report.LabTestName</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>Result</label>
+
+                            <div class="fw-bold
+                                @(report.ResultStatus == "Positive"
+                                                                     ? "text-danger"
+                                                                     : "text-success")">
+
+                                @report.ResultValue
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>Verified</label>
+                            <div>
+                                @(report.IsVerified ? "Yes" : "No")
+                            </div>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label>Remarks</label>
+
+                            <div class="remarks-box">
+                                @(string.IsNullOrWhiteSpace(report.Remarks)
+                                    ? "No remarks"
+                                    : report.Remarks)
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- FOOTER -->
+                <div class="report-footer">
+
+                    <div>
+                        Generated:
+                        @report.EnteredAt.ToString("dd MMM yyyy HH:mm")
+                    </div>
+
+                    <button class="btn btn-primary"
+                            @onclick="PrintReport">
+                        Print Report
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    [Parameter]
+    public Guid LabResultId { get; set; }
+
+    private bool isLoading = true;
+
+    private LabReportDto? report;
+
+    protected override async Task OnInitializedAsync()
+    {
+        report = await Mediator.Send(
+            new GetLabReportByIdQuery
+            {
+                LabResultId = LabResultId
+            });
+
+        isLoading = false;
+    }
+
+    private async Task PrintReport()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
+} *@

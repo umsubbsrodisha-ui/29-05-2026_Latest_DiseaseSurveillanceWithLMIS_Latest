@@ -1,0 +1,502 @@
+﻿@page "/case-details/{id:int}"
+@attribute [Authorize]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Cases.Queries
+
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<PageTitle>Case Details</PageTitle>
+
+<div class="case-details-page">
+
+    @if (caseRecord == null)
+    {
+        <div class="loading-card shadow-sm">
+            <div class="spinner-border text-primary me-3"></div>
+            <span class="fw-semibold">Loading case details...</span>
+        </div>
+    }
+    else
+    {
+        <div class="case-header shadow-sm">
+            <div>
+                <div class="case-title-section">
+                    <h2 class="case-title">
+                        <i class="bi bi-virus2 me-2"></i>
+                        @caseRecord.DiseaseName
+                    </h2>
+
+                    <span class="status-badge @(caseRecord.IsCommunicable ? "status-danger" : "status-safe")">
+                        @(caseRecord.IsCommunicable ? "Communicable" : "Non-Communicable")
+                    </span>
+
+                    <span class="case-status">
+                        @caseRecord.CaseStatus
+                    </span>
+                </div>
+
+                <div class="case-subtitle">
+                    Case ID: #@caseRecord.Id
+                </div>
+            </div>
+
+            <button class="btn-edit" @onclick="GoToEdit">
+                <i class="bi bi-pencil-square me-2"></i>
+                Edit Case
+            </button>
+        </div>
+
+        <div class="case-card shadow-sm">
+
+            <div class="details-grid">
+
+                <div class="detail-item">
+                    <div class="detail-label">Patient Name</div>
+                    <div class="detail-value">@caseRecord.PatientName</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Phone</div>
+                    <div class="detail-value">@caseRecord.Phone</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Facility</div>
+                    <div class="detail-value">@caseRecord.FacilityName</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Entered By</div>
+                    <div class="detail-value">@caseRecord.CreatedByName</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Onset Date</div>
+                    <div class="detail-value">@caseRecord.OnsetDate.ToString("dd MMM yyyy")</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Date Reported</div>
+                    <div class="detail-value">@caseRecord.DateReported.ToString("dd MMM yyyy")</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Created Date</div>
+                    <div class="detail-value">@caseRecord.CreatedDate.ToString("dd MMM yyyy hh:mm tt")</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Lab Confirmed Date</div>
+                    <div class="detail-value">
+                        @(caseRecord.LabConfirmedDate.HasValue
+                            ? caseRecord.LabConfirmedDate.Value.ToString("dd MMM yyyy hh:mm tt")
+                            : "Pending")
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">
+                    <i class="bi bi-geo-alt-fill me-2"></i>
+                    Patient Address
+                </div>
+
+                <div class="section-content">
+                    @caseRecord.AddressOfPatient
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(caseRecord.Notes))
+            {
+                <div class="section-card">
+                    <div class="section-title">
+                        <i class="bi bi-journal-medical me-2"></i>
+                        Notes
+                    </div>
+
+                    <div class="section-content">
+                        @caseRecord.Notes
+                    </div>
+                </div>
+            }
+
+            <div class="section-card">
+                <div class="section-title">
+                    <i class="bi bi-clipboard2-pulse-fill me-2"></i>
+                    Symptoms
+                </div>
+
+                @if (caseRecord.Symptoms.Any())
+                {
+                    <div>
+                        @foreach (var symptom in caseRecord.Symptoms)
+                        {
+                            <span class="symptom-chip">@symptom</span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="section-content">No symptoms recorded.</div>
+                }
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">
+                    <i class="bi bi-droplet-fill me-2"></i>
+                    Sample Tracking
+                </div>
+
+                @if (caseRecord.Samples.Any())
+                {
+                    <div class="case-table-wrap">
+                        <table class="table custom-table">
+                            <thead class="table-header">
+                                <tr>
+                                    <th>Sample Type</th>
+                                    <th>Status</th>
+                                    <th>Barcode</th>
+                                    <th>Dispatch Ref</th>
+                                    <th>Collected By</th>
+                                    <th>Collected</th>
+                                    <th>Dispatched</th>
+                                    <th>Received</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (var sample in caseRecord.Samples)
+                                {
+                                    <tr class="table-row">
+                                        <td>@sample.SampleType</td>
+                                        <td>
+                                            <span class="status-pill status-yellow">
+                                                @sample.SampleStatus
+                                            </span>
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(sample.Barcode) ? "-" : sample.Barcode)</td>
+                                        <td>@(sample.DispatchReferenceNo ?? "-")</td>
+                                        <td>@(sample.CollectedBy ?? "-")</td>
+                                        <td>
+                                            @(sample.CollectedAt.HasValue
+                                                ? sample.CollectedAt.Value.ToLocalTime().ToString("dd MMM yyyy hh:mm tt")
+                                                : "-")
+                                        </td>
+                                        <td>
+                                            @(sample.DispatchedAt.HasValue
+                                                ? sample.DispatchedAt.Value.ToString("dd MMM yyyy hh:mm tt")
+                                                : "-")
+                                        </td>
+                                        <td>
+                                            @(sample.ReceivedAtLabAt.HasValue
+                                                ? sample.ReceivedAtLabAt.Value.ToString("dd MMM yyyy hh:mm tt")
+                                                : "-")
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="section-content">No samples created.</div>
+                }
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">
+                    <i class="bi bi-eyedropper me-2"></i>
+                    Requested Lab Tests
+                </div>
+
+                @if (caseRecord.LabTests.Any())
+                {
+                    <div class="case-table-wrap">
+                        <table class="table custom-table">
+                            <thead class="table-header">
+                                <tr>
+                                    <th>Test Name</th>
+                                    <th>Sample Barcode</th>
+                                    <th>Result Status</th>
+                                    <th>Result Value</th>
+                                    <th>Tested At</th>
+                                    <th>Remarks</th>
+                                    <th>Report</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (var test in caseRecord.LabTests)
+                                {
+                                    <tr class="table-row">
+                                        <td>@test.LabTestName</td>
+                                        <td>@(string.IsNullOrWhiteSpace(test.SampleBarcode) ? "-" : test.SampleBarcode)</td>
+                                        <td>
+                                            <span class="status-pill @(GetResultClass(test.LabResultStatus))">
+                                                @test.LabResultStatus
+                                            </span>
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(test.ResultValue) ? "-" : test.ResultValue)</td>
+                                        <td>
+                                            @(test.TestedAt.HasValue
+                                                ? test.TestedAt.Value.ToString("dd MMM yyyy hh:mm tt")
+                                                : "-")
+                                        </td>
+                                        <td>@(test.Remarks ?? "-")</td>
+                                        <td>
+                                            @if (caseRecord.LabTests.Any() &&
+                                                     caseRecord.LabTests.All(t => t.IsVerified))
+                                            {
+                                                <a href="/lab-report/case/@caseRecord.Id"
+                                                       class="btn-view">
+                                                    Report
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                <span>-</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="section-content">No lab tests requested.</div>
+                }
+            </div>
+
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public int id { get; set; }
+
+    private CaseDetailsDto? caseRecord;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        caseRecord = await Mediator.Send(new GetCaseByIdQuery
+        {
+            Id = id
+        });
+    }
+
+    private void GoToEdit()
+    {
+        Navigation.NavigateTo($"/case-edit/{id}");
+    }
+
+    private string GetResultClass(string status)
+    {
+        return status switch
+        {
+            "Positive" => "status-red",
+            "Negative" => "status-green",
+            "Pending" => "status-yellow",
+            _ => "status-yellow"
+        };
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @page "/case-details/{id:int}"
+@attribute [Authorize]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Cases.Queries
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+
+<h3>Case Details</h3>
+
+@if (caseRecord == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="card p-4 shadow">
+        <h4>@caseRecord.DiseaseName</h4>
+
+        <p><b>Patient Name:</b> @caseRecord.PatientName</p>
+        <p><b>Address:</b> @caseRecord.AddressOfPatient</p>
+        <p><b>Symptoms:</b> @caseRecord.Symptoms</p>
+        <p><b>Disease:</b> @caseRecord.DiseaseName</p>
+        <p><b>Date:</b> @caseRecord.CreatedDate.ToShortDateString()</p>
+        <p><b>UPHC:</b> @caseRecord.FacilityName</p>
+        <p><b>Phone:</b> @caseRecord.Phone</p>
+        <p><b>Type:</b> @(caseRecord.IsCommunicable ? "Communicable" : "Non-Communicable")</p>
+        <p><b>Status:</b> @caseRecord.Status</p>
+        
+        <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-primary" @onclick="GoToEdit">
+                ✏️ Edit Case
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+
+    CaseDetailsDto? caseRecord;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var query = new GetCaseByIdQuery { Id = id };
+        caseRecord = await Mediator.Send(query);
+    }
+
+    void GoToEdit()
+    {
+        Navigation.NavigateTo($"/case-edit/{id}");
+    }
+}
+ *@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@* @page "/case-details/{id:int}"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using UPHC.SurveillanceDashboard.Data
+@inject IDbContextFactory<AppDbContext_NOuse> DbFactory
+@inject NavigationManager Navigation
+<h3>Case Details</h3>
+
+@if (caseRecord == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+
+    <div class="card p-4 shadow">
+        <h4>@caseRecord.DiseaseName</h4>
+
+        <p><b>Patient Name:</b> @caseRecord.PatientName</p>
+        <p><b>Address:</b> @caseRecord.AddressOfPatient</p>
+        <p><b>Symptoms:</b> @caseRecord.Symptoms</p>
+        <p><b>Disease:</b> @caseRecord.DiseaseName</p>
+        <p><b>Date:</b> @caseRecord.CreatedDate.ToShortDateString()</p>
+        <p><b>UPHC:</b> @caseRecord.Facility?.FacilityName</p>
+        <p><b>Phone:</b> @caseRecord.Phone</p>
+        <p><b>Type:</b> @(caseRecord.IsCommunicable ? "Communicable" : "Non-Communicable")</p>
+        <p><b>Status:</b> @caseRecord.Status</p>
+        
+        <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-primary"
+                    @onclick="GoToEdit">
+                ✏️ Edit Case
+            </button>
+        </div>
+    </div>
+
+ 
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+
+    CaseRecord? caseRecord;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        using var db = DbFactory.CreateDbContext();
+
+        caseRecord = await db.CaseRecords
+            .Include(c => c.Facility)
+            .FirstOrDefaultAsync(c => c.Id == id);
+    }
+
+
+    void GoToEdit()
+    {
+        Navigation.NavigateTo($"/case-edit/{id}");
+    }
+} *@

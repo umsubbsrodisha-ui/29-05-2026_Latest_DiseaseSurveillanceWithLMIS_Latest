@@ -1,0 +1,444 @@
+﻿@page "/sample-queue"
+@attribute [Authorize(Roles = "LT,MB,Admin")]
+
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Surveillance.Application.DTOs
+@using Surveillance.Application.Features.Samples.Queries
+@using Surveillance.Application.Features.Samples.Commands
+@using Surveillance.Domain.Entities
+@using Surveillance.Domain.Enums
+
+@inject IMediator Mediator
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Sample Queue</PageTitle>
+
+<div class="facility-page">
+
+    <div class="facility-header shadow-sm">
+        <div>
+            <div class="facility-title">
+                <i class="bi bi-droplet-fill me-2"></i>
+                LT Sample Queue
+            </div>
+
+            <div class="facility-address">
+                Facility : @facilityName
+            </div>
+        </div>
+
+        <div class="stats-card">
+            <div class="stats-count">@samples.Count</div>
+            <div class="stats-label">Samples</div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-card shadow-sm">
+            <div class="spinner-border text-primary me-3"></div>
+            <span class="fw-semibold">Loading sample queue...</span>
+        </div>
+    }
+    else if (!samples.Any())
+    {
+        <div class="empty-card shadow-sm">
+            <div class="empty-icon">
+                <i class="bi bi-inbox"></i>
+            </div>
+            <h4>No samples found</h4>
+        </div>
+    }
+    else
+    {
+        <div class="facility-table-container shadow-sm">
+            <table class="table custom-table">
+                <thead class="table-header">
+                    <tr>
+                        <th>Case</th>
+                        <th>Patient</th>
+                        <th>Disease</th>
+                        <th>Sample</th>
+                        <th>Status</th>
+                        <th>Barcode</th>
+                        <th>Dispatch Ref</th>
+                        <th>Created</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var sample in samples)
+                    {
+                        <tr class="table-row">
+                            <td>#@sample.CaseRecordId</td>
+                            <td>
+                                <strong>@sample.PatientName</strong><br />
+                                <small>@sample.Phone</small>
+                            </td>
+                            <td>
+                                <span class="disease-badge">
+                                    @sample.DiseaseName
+                                </span>
+                            </td>
+                            <td>@sample.SampleTypeName</td>
+                            <td>
+                                <span class="case-status">
+                                    @sample.SampleStatus
+                                </span>
+                            </td>
+                            <td>@(string.IsNullOrWhiteSpace(sample.Barcode) ? "-" : sample.Barcode)</td>
+                            <td>@(sample.DispatchReferenceNo ?? "-")</td>
+                            <td>@sample.CreatedAt.ToString("dd MMM yyyy")</td>
+
+
+                            <td>
+                                @if (isAdmin)
+                                {
+                                    <button class="btn-view"
+                                            @onclick="() => OpenUpdate(sample)">
+                                        Update
+                                    </button>
+                                }
+                                else if (isLT)
+                                {
+                                    @if (sample.SampleStatus == SampleStatus.PendingCollection.ToString()
+                                               || sample.SampleStatus == SampleStatus.Collected.ToString())
+                                    {
+                                        <button class="btn-view"
+                                                @onclick="() => OpenUpdate(sample)">
+                                            Update
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Locked</span>
+                                    }
+                                }
+                                else if (isMB)
+                                {
+                                    @if (sample.SampleStatus == SampleStatus.Dispatched.ToString()
+                                               || sample.SampleStatus == SampleStatus.Received.ToString())
+                                    {
+                                        <button class="btn-view"
+                                                @onclick="() => OpenUpdate(sample)">
+                                            Update
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Locked</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Locked</span>
+                                }
+                            </td>
+                           @*  <td>
+                                @if (sample.SampleStatus != SampleStatus.Tested.ToString()
+                                                                    && sample.SampleStatus != SampleStatus.Archived.ToString()
+                                                                    && sample.SampleStatus != SampleStatus.Rejected.ToString())
+                                {
+                                    <button class="btn-view"
+                                            @onclick="() => OpenUpdate(sample)">
+                                        Update
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Locked</span>
+                                }
+                            </td> *@
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (selectedSample != null)
+    {
+        <div class="custom-alert-overlay">
+            <div class="custom-alert-box success" style="max-width:520px; text-align:left;">
+
+                <h4 class="text-white mb-3">
+                    Update Sample
+                </h4>
+
+                <div class="mb-3">
+                    <label class="form-label text-white">Current Status</label>
+                    <input class="form-control" value="@selectedSample.SampleStatus" disabled />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-white">New Status</label>
+                    <select class="form-control" @bind="selectedStatus">
+                        @foreach (var status in allowedStatuses)
+                        {
+                            <option value="@status">@status</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-white">Barcode</label>
+                    <input class="form-control" @bind="barcode" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-white">Collected By</label>
+                    <input class="form-control" @bind="collectedBy" />
+                </div>
+
+                @if (selectedStatus == SampleStatus.Dispatched)
+                {
+                    <div class="mb-3">
+                        <label class="form-label text-white">Dispatch Reference No</label>
+                        <input class="form-control" @bind="dispatchReferenceNo" />
+                    </div>
+                }
+
+               @*  <div class="mb-3">
+                    <label class="form-label text-white">Dispatch Reference No</label>
+                    <input class="form-control" @bind="dispatchReferenceNo" />
+                </div> *@
+
+                <div class="mb-3">
+                    <label class="form-label text-white">Collection Notes</label>
+                    <textarea class="form-control" rows="3" @bind="collectionNotes"></textarea>
+                </div>
+
+                <div class="d-flex gap-2 justify-content-end">
+                    <button class="alert-close" @onclick="CloseModal">
+                        Cancel
+                    </button>
+
+                    <button class="alert-close" @onclick="UpdateSample" disabled="@isSaving">
+                        @(isSaving ? "Saving..." : "Save")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="custom-alert-overlay">
+            <div class="custom-alert-box @(success ? "success" : "error")">
+                <div class="alert-icon">
+                    @(success ? "✔️" : "❌")
+                </div>
+
+                <div class="alert-text">
+                    @message
+                </div>
+
+                <button class="alert-close" @onclick="CloseAlert">
+                    OK
+                </button>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private List<SampleQueueDto> samples = new();
+
+    private SampleQueueDto? selectedSample;
+
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool success;
+    private string? message;
+
+    private string facilityName = "";
+    private int facilityId;
+
+    private SampleStatus selectedStatus;
+    private List<SampleStatus> allowedStatuses = new();
+
+    private string? barcode;
+    private string? collectedBy;
+    private string? collectionNotes;
+    private string? dispatchReferenceNo;
+
+    private bool isLT;
+    private bool isMB;
+    private bool isAdmin;
+
+  
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        var user = authState.User;
+        isLT = user.IsInRole("LT");
+        isMB = user.IsInRole("MB");
+      
+
+         isAdmin = user.IsInRole("Admin");
+
+        if (isAdmin)
+        {
+            facilityId = 0;
+            facilityName = "All Facilities";
+        }
+        else
+        {
+            var facilityClaim = user.FindFirst("FacilityId")?.Value;
+
+            if (!int.TryParse(facilityClaim, out facilityId) ||
+                facilityId <= 0)
+            {
+                message = "Facility is not assigned to this user.";
+                success = false;
+                isLoading = false;
+                return;
+            }
+
+            facilityName = $"Facility #{facilityId}";
+        }
+
+        await LoadSamples();
+
+        isLoading = false;
+
+
+
+    }
+
+    private async Task LoadSamples()
+    {
+        samples = await Mediator.Send(new GetSampleQueueQuery
+        {
+            FacilityId = facilityId
+        });
+    }
+
+    private void OpenUpdate(SampleQueueDto sample)
+    {
+        selectedSample = sample;
+
+        barcode = sample.Barcode;
+        collectedBy = sample.CollectedBy;
+        collectionNotes = sample.CollectionNotes;
+        dispatchReferenceNo = sample.DispatchReferenceNo;
+
+        allowedStatuses = GetAllowedStatuses(sample.SampleStatus);
+
+        selectedStatus = allowedStatuses.FirstOrDefault();
+    }
+
+    private List<SampleStatus> GetAllowedStatuses(string currentStatus)
+    {
+        if (currentStatus == SampleStatus.PendingCollection.ToString())
+        {
+            return new List<SampleStatus>
+            {
+                SampleStatus.Collected,
+                SampleStatus.Rejected
+            };
+        }
+
+        if (currentStatus == SampleStatus.Collected.ToString())
+        {
+            return new List<SampleStatus>
+            {
+                SampleStatus.Dispatched,
+                SampleStatus.Rejected
+            };
+        }
+
+        if (currentStatus == SampleStatus.Dispatched.ToString())
+        {
+            return new List<SampleStatus>
+            {
+                SampleStatus.Received,
+                SampleStatus.Rejected
+            };
+        }
+
+        if (currentStatus == SampleStatus.Received.ToString())
+        {
+            return new List<SampleStatus>
+            {
+                SampleStatus.Processing,
+                SampleStatus.Rejected
+            };
+        }
+
+        return new List<SampleStatus>();
+    }
+
+    private async Task UpdateSample()
+    {
+        if (selectedSample == null || isSaving)
+            return;
+
+       
+
+
+        if (selectedStatus == SampleStatus.Dispatched &&
+    string.IsNullOrWhiteSpace(dispatchReferenceNo))
+        {
+            success = false;
+            message = "Dispatch Reference No is required when dispatching sample.";
+            return;
+        }
+        isSaving = true;
+
+        try
+        {
+            var result = await Mediator.Send(new UpdateSampleStatusCommand
+            {
+                SampleId = selectedSample.SampleId,
+                NewStatus = selectedStatus,
+                Barcode = barcode,
+                CollectedBy = collectedBy,
+                CollectionNotes = collectionNotes,
+                DispatchReferenceNo = dispatchReferenceNo
+            });
+
+            if (result)
+            {
+                success = true;
+                message = "Sample updated successfully.";
+
+                selectedSample = null;
+
+                await LoadSamples();
+            }
+            else
+            {
+                success = false;
+                message = "Sample not found.";
+            }
+        }
+        catch (Exception ex)
+        {
+            success = false;
+            message = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void CloseModal()
+    {
+        selectedSample = null;
+    }
+
+    private void CloseAlert()
+    {
+        message = null;
+    }
+}
